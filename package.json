@@ -1,0 +1,14 @@
+{
+  "name": "storm-depotv-addon",
+  "version": "0.1.0",
+  "description": "Addon de Stremio/Nuvio (catálogo propio) portado desde 3 sub-fuentes de DeporTVProvider de CloudStream (storm-ext)",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "stremio-addon-sdk": "^1.6.10",
+    "cheerio": "^1.0.0",
+    "node-fetch": "^2.7.0",
+    "express": "^4.19.2"
+  }
+}
