@@ -1,25 +1,25 @@
-const { resolveCanalesPhp } = require('../extractors/canalesphp');
+const { resolveM3u8ViaBrowser } = require('../extractors/browser');
 
 const MAIN_URL = 'https://la18hd.su'; // revisar si cambia el dominio
 const PREFIX = 'la18hd';
 
-// Lista curada de slugs conocidos (mismo patrón de nombres que
-// CablevisionHd). No hay forma de auto-descubrirlos sin explorar el sitio
-// a mano, así que si falta o sobra alguno, ajustar acá directamente —
-// ver README para instrucciones de cómo sumar uno nuevo.
+// Lista curada de slugs confirmados por el usuario + variantes numeradas
+// típicas de este tipo de sitio (canal, canal2, canal3...). Si falta o
+// sobra alguno, se ajusta acá — ver README.
 const CHANNELS = [
   { slug: 'espn', name: 'ESPN' },
   { slug: 'espn2', name: 'ESPN 2' },
   { slug: 'espn3', name: 'ESPN 3' },
   { slug: 'espn4', name: 'ESPN 4' },
   { slug: 'espnpremium', name: 'ESPN Premium' },
+  { slug: 'dsports', name: 'DSports' },
+  { slug: 'dsports2', name: 'DSports 2' },
+  { slug: 'dsportsplus', name: 'DSports Plus' },
+  { slug: 'tudn', name: 'TUDN' },
   { slug: 'foxsports', name: 'Fox Sports' },
   { slug: 'foxsports2', name: 'Fox Sports 2' },
   { slug: 'foxsports3', name: 'Fox Sports 3' },
-  { slug: 'tudn', name: 'TUDN' },
   { slug: 'tycsports', name: 'TyC Sports' },
-  { slug: 'directvsports', name: 'Directv Sports' },
-  { slug: 'directvsports2', name: 'Directv Sports 2' },
   { slug: 'golperu', name: 'Gol Perú' },
   { slug: 'goltv', name: 'Gol TV' },
   { slug: 'tntsports', name: 'TNT Sports' },
@@ -51,14 +51,10 @@ async function getCatalog() {
 
 async function search(query) {
   const q = slugify(query);
-  const found = CHANNELS.filter(
-    (c) => slugify(c.name).includes(q) || c.slug.includes(q)
-  );
+  const found = CHANNELS.filter((c) => slugify(c.name).includes(q) || c.slug.includes(q));
   if (found.length > 0) {
     return found.map((c) => ({ id: toId(c.slug, c.name), type: 'tv', name: c.name }));
   }
-  // No está en la lista curada: probamos igual con el texto tal cual como
-  // slug — puede que exista en el sitio aunque no lo tengamos cargado acá.
   return [{ id: toId(q, query), type: 'tv', name: `${query} (no confirmado)` }];
 }
 
@@ -71,43 +67,38 @@ async function getStreams(id) {
   const { slug, name } = fromId(id);
   const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
 
-  const urls = await resolveCanalesPhp(pageUrl);
-  console.log(`[la18hd] ${pageUrl} -> ${urls.length} links crudos encontrados`);
+  console.log(`[la18hd] resolviendo vía navegador headless: ${pageUrl}`);
+  const resolved = await resolveM3u8ViaBrowser(pageUrl, { timeoutMs: 20000 });
 
-  const streams = [];
-  for (const url of urls) {
-    // El pedido puntual: cuando el link final es del tipo
-    // .../<canal>/mono.m3u8?token=..., existe una variante .../index.m3u8
-    // con el mismo token que sirve el stream completo (mono es solo audio
-    // o una variante reducida). Ofrecemos ambas por si "index" no
-    // estuviera disponible para algún canal puntual.
-    if (url.includes('/mono.m3u8')) {
-      streams.push({
-        name: 'LA18HD',
-        title: `${name} (index)`,
-        url: url.replace('/mono.m3u8', '/index.m3u8'),
-        type: 'hls',
-        headers: { Referer: `${MAIN_URL}/`, 'User-Agent': 'Mozilla/5.0' },
-        behaviorHints: { notWebReady: true },
-      });
-      streams.push({
-        name: 'LA18HD',
-        title: `${name} (mono - respaldo)`,
-        url,
-        type: 'hls',
-        headers: { Referer: `${MAIN_URL}/`, 'User-Agent': 'Mozilla/5.0' },
-        behaviorHints: { notWebReady: true },
-      });
-    } else {
-      streams.push({
-        name: 'LA18HD',
-        title: name,
-        url,
-        type: url.includes('.m3u8') ? 'hls' : 'mp4',
-        headers: { Referer: `${MAIN_URL}/`, 'User-Agent': 'Mozilla/5.0' },
-        behaviorHints: { notWebReady: url.includes('.m3u8') },
-      });
-    }
+  if (!resolved) {
+    console.log(`[la18hd] no se encontró ningún m3u8 para ${slug}`);
+    return [];
+  }
+
+  const streams = [
+    {
+      name: 'LA18HD',
+      title: `${name} (index)`,
+      url: resolved.url.includes('/mono.m3u8')
+        ? resolved.url.replace('/mono.m3u8', '/index.m3u8')
+        : resolved.url,
+      type: 'hls',
+      headers: resolved.headers,
+      behaviorHints: { notWebReady: true },
+    },
+  ];
+
+  // Si el link capturado ya era /mono.m3u8, agregamos ese también como
+  // respaldo por si /index.m3u8 no estuviera disponible para este canal.
+  if (resolved.url.includes('/mono.m3u8')) {
+    streams.push({
+      name: 'LA18HD',
+      title: `${name} (mono - respaldo)`,
+      url: resolved.url,
+      type: 'hls',
+      headers: resolved.headers,
+      behaviorHints: { notWebReady: true },
+    });
   }
 
   console.log(`[la18hd] streams devueltos: ${streams.length}`);
