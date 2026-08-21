@@ -85,8 +85,15 @@ const CHANNELS = [
 // https://commons.wikimedia.org/wiki/Category:Logos_of_sports_television_channels
 // (o el buscador de Commons) y agregar la entrada acá con el nombre EXACTO
 // del archivo.
+// IMPORTANTE: pedimos ?width=300 aunque el archivo original sea .svg.
+// Wikimedia lo detecta y devuelve un PNG rasterizado en su propio server
+// (no un SVG crudo). Esto es necesario porque muchos renderizadores de
+// imagen en apps móviles (el que usa Stremio en Android, por ejemplo) no
+// soportan SVG y simplemente no muestran nada — mientras que en
+// desktop/web sí funciona porque el navegador renderiza SVG nativamente.
+// De paso, el PNG de 300px pesa mucho menos que el SVG/PNG original.
 function wikimediaFile(fileName) {
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}`;
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}?width=300`;
 }
 
 const LOGO_MAP = {
@@ -157,9 +164,9 @@ const LOGO_MAP = {
   sportv: wikimediaFile('SporTV 2017 logo.svg'),
   sportv2: wikimediaFile('SporTV 2017 logo.svg'),
   // Otros (URLs directas pasadas por el usuario, no son de Wikimedia)
-  ecdf_ligapro: 'https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg',
-  canal5: 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Canal_5_2016.svg',
-  calientetv: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png',
+  ecdf_ligapro: 'https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg', // ya es raster (jpg)
+  canal5: wikimediaFile('Canal 5 2016.svg'), // vía Special:FilePath para que se rasterice a PNG
+  calientetv: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png', // ya es raster (png)
   // Eventos Disney+ (logo pasado por el usuario)
   disney: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
   disney2: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
