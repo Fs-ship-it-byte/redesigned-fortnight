@@ -29,7 +29,7 @@ const manifest = {
   types: ['tv'],
   catalogs: [
     { type: 'tv', id: 'agenda', name: 'DeporTV - Agenda en vivo', extra: [{ name: 'search' }] },
-    { type: 'tv', id: 'canales', name: 'LA18HD - Canales en vivo', extra: [{ name: 'search' }] },
+    { type: 'tv', id: 'canales', name: 'LA18HD - Canales en vivo', extra: [{ name: 'search' }], posterShape: 'square' },
   ],
   idPrefixes: [depotv.PREFIX, la18hd.PREFIX],
 };
