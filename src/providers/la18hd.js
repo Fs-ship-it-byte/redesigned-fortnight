@@ -78,6 +78,24 @@ const CHANNELS = [
   { slug: 'eventos13', name: 'Eventos 13 (¿TNT Sports Chile?)' },
 ];
 
+// No hay forma de sacar el logo real de cada canal sin explorar el sitio
+// a mano, así que generamos una tarjeta con las iniciales del canal (vía
+// un servicio público de avatares) para que al menos se vean distintos
+// entre sí y se diferencien claramente de los pósters de película/serie
+// de los otros addons. Color determinado por el nombre, para que cada
+// canal tenga siempre el mismo color entre requests.
+const CARD_COLORS = ['0EA5E9', 'DC2626', '16A34A', 'CA8A04', '7C3AED', 'DB2777', 'EA580C', '0891B2'];
+function colorForName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return CARD_COLORS[hash % CARD_COLORS.length];
+}
+function posterFor(name) {
+  const bg = colorForName(name);
+  const label = name.replace(/\s*\([^)]*\)\s*$/, ''); // saca el "(País)" del final para el logo
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&size=256&background=${bg}&color=fff&bold=true&format=png&length=3`;
+}
+
 function toId(slug, name) {
   return `${PREFIX}:${Buffer.from(JSON.stringify({ slug, name })).toString('base64url')}`;
 }
@@ -96,21 +114,53 @@ function slugify(str) {
 }
 
 async function getCatalog() {
-  return CHANNELS.map((c) => ({ id: toId(c.slug, c.name), type: 'tv', name: c.name }));
+  return CHANNELS.map((c) => ({
+    id: toId(c.slug, c.name),
+    type: 'tv',
+    name: c.name,
+    poster: posterFor(c.name),
+    posterShape: 'square',
+    background: posterFor(c.name),
+    logo: posterFor(c.name),
+  }));
 }
 
 async function search(query) {
   const q = slugify(query);
   const found = CHANNELS.filter((c) => slugify(c.name).includes(q) || c.slug.includes(q));
   if (found.length > 0) {
-    return found.map((c) => ({ id: toId(c.slug, c.name), type: 'tv', name: c.name }));
+    return found.map((c) => ({
+      id: toId(c.slug, c.name),
+      type: 'tv',
+      name: c.name,
+      poster: posterFor(c.name),
+      posterShape: 'square',
+      background: posterFor(c.name),
+      logo: posterFor(c.name),
+    }));
   }
-  return [{ id: toId(q, query), type: 'tv', name: `${query} (no confirmado)` }];
+  return [
+    {
+      id: toId(q, query),
+      type: 'tv',
+      name: `${query} (no confirmado)`,
+      poster: posterFor(query),
+      posterShape: 'square',
+    },
+  ];
 }
 
 async function getMeta(id) {
   const { name } = fromId(id);
-  return { id, type: 'tv', name };
+  return {
+    id,
+    type: 'tv',
+    name,
+    poster: posterFor(name),
+    posterShape: 'square',
+    background: posterFor(name),
+    logo: posterFor(name),
+  };
 }
 
 async function getStreams(id) {
