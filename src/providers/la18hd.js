@@ -75,25 +75,122 @@ const CHANNELS = [
   { slug: 'disney4', name: 'Evento Disney+ 4' },
   { slug: 'disney5', name: 'Evento Disney+ 5' },
   { slug: 'disney6', name: 'Evento Disney+ 6' },
-  { slug: 'eventos13', name: 'Eventos 13 (¿TNT Sports Chile?)' },
 ];
 
-// No hay forma de sacar el logo real de cada canal sin explorar el sitio
-// a mano, así que generamos una tarjeta con las iniciales del canal (vía
-// un servicio público de avatares) para que al menos se vean distintos
-// entre sí y se diferencien claramente de los pósters de película/serie
-// de los otros addons. Color determinado por el nombre, para que cada
-// canal tenga siempre el mismo color entre requests.
+// Logos reales verificados en Wikimedia Commons (Special:FilePath sirve
+// el archivo directo, es un link estable que no requiere que nuestro
+// server descargue/reserve nada). Cubre los canales más comunes de la
+// parrilla; el resto cae al generador de iniciales de más abajo. Para
+// sumar uno nuevo: buscar el archivo en
+// https://commons.wikimedia.org/wiki/Category:Logos_of_sports_television_channels
+// (o el buscador de Commons) y agregar la entrada acá con el nombre EXACTO
+// del archivo.
+function wikimediaFile(fileName) {
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}`;
+}
+
+const LOGO_MAP = {
+  // ESPN
+  espn: wikimediaFile('ESPN Networks logo.svg'),
+  espn_usa: wikimediaFile('ESPN Networks logo.svg'),
+  espnmx: wikimediaFile('ESPN Networks logo.svg'),
+  espndeportes: wikimediaFile('ESPN Networks logo.svg'),
+  espnu: wikimediaFile('ESPN Networks logo.svg'),
+  espn2: wikimediaFile('ESPN2 logo.svg'),
+  espn2mx: wikimediaFile('ESPN2 logo.svg'),
+  espn2_usa: wikimediaFile('ESPN2 logo.svg'),
+  espn3: wikimediaFile('ESPN3 logo.svg'),
+  espn3mx: wikimediaFile('ESPN3 logo.svg'),
+  espn4: wikimediaFile('ESPN 4 logo.svg'),
+  espn4mx: wikimediaFile('ESPN 4 logo.svg'),
+  espn5: wikimediaFile('ESPN 5 logo.svg'),
+  espn6: wikimediaFile('ESPN 6 logo.svg'),
+  espn7: wikimediaFile('ESPN 7 logo.svg'),
+  espnpremium: wikimediaFile('ESPN Premium logo.svg'),
+  // Fox Sports
+  foxsports: wikimediaFile('FOX Sports logo.svg'),
+  foxsportsmx: wikimediaFile('FOX Sports logo.svg'),
+  foxdeportes: wikimediaFile('FOX Sports logo.svg'),
+  foxsportspremium: wikimediaFile('FOX Sports logo.svg'),
+  foxsports1_usa: wikimediaFile('Fox Sports 1 logo.svg'),
+  foxsports2: wikimediaFile('Fox sports 2 logo.svg'),
+  foxsports2mx: wikimediaFile('Fox sports 2 logo.svg'),
+  foxsports2_usa: wikimediaFile('Fox sports 2 logo.svg'),
+  foxsports3: wikimediaFile('Fox sports 3 logo.svg'),
+  foxsports3mx: wikimediaFile('Fox sports 3 logo.svg'),
+  // DSports / DirecTV Sports
+  dsports: wikimediaFile('DSports.svg'),
+  dsports2: wikimediaFile('DSports.svg'),
+  dsportsplus: wikimediaFile('DSports.svg'),
+  // TUDN
+  tudn: wikimediaFile('TUDN Logo.svg'),
+  tudn_mx: wikimediaFile('TUDN Logo.svg'),
+  // TNT Sports
+  tntsports: wikimediaFile('TNT Sports Logo.svg'),
+  tntsportschile: wikimediaFile('TNT Sports Chile.svg'),
+  // beIN Sports
+  beinsportes: wikimediaFile('BeIN Sports.svg'),
+  beinsport_xtra_espanol: wikimediaFile('BeIN Sports.svg'),
+  // TyC Sports
+  tycsports: wikimediaFile('TyC Sports logo.svg'),
+  tycinternacional: wikimediaFile('TyC Sports logo.svg'),
+  // Gol / Liga1 / Movistar (Perú)
+  goltv: wikimediaFile('GolTV logo.svg'),
+  golperu: wikimediaFile('Gol Perú 2019.svg'),
+  liga1max: wikimediaFile('Liga1 (Perú) logo.png'),
+  movistar: wikimediaFile('Movistar Deportes.svg'),
+  // Win Sports (Colombia)
+  winsports: wikimediaFile('Win Sports nuevo logo.svg'),
+  winsports2: wikimediaFile('Win Sports nuevo logo.svg'),
+  winsportsplus: wikimediaFile('Win Sports+ logo.svg'),
+  // Sky Sports
+  sky_sports_laliga: wikimediaFile('Sky Sports 2025.svg'),
+  // Argentina
+  telefe: wikimediaFile('Telefe-Logo.svg'),
+  tvpublica: wikimediaFile('TVP - Televisión Pública (2021).svg'),
+  // México
+  azteca7: wikimediaFile('Logo de Azteca 7 2024 (cropped).png'),
+  azteca_deportes: wikimediaFile('Aztecadeporteslogo.png'),
+  // Brasil
+  premiere1: wikimediaFile('Premiere FC logo.png'),
+  premiere2: wikimediaFile('Premiere FC logo.png'),
+  sportv: wikimediaFile('SporTV 2017 logo.svg'),
+  sportv2: wikimediaFile('SporTV 2017 logo.svg'),
+  // Otros (URLs directas pasadas por el usuario, no son de Wikimedia)
+  ecdf_ligapro: 'https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg',
+  canal5: 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Canal_5_2016.svg',
+  calientetv: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png',
+  // Eventos Disney+ (logo pasado por el usuario)
+  disney: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  disney2: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  disney3: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  disney4: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  disney5: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  disney6: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+};
+
+// Para el resto (sin logo confirmado todavía), generamos una tarjeta con
+// las iniciales del canal vía un servicio público de avatares, para que
+// al menos se vean distintos entre sí y se diferencien claramente de los
+// pósters de película/serie de los otros addons. Color determinado por el
+// nombre, para que cada canal tenga siempre el mismo color entre requests.
 const CARD_COLORS = ['0EA5E9', 'DC2626', '16A34A', 'CA8A04', '7C3AED', 'DB2777', 'EA580C', '0891B2'];
 function colorForName(name) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return CARD_COLORS[hash % CARD_COLORS.length];
 }
-function posterFor(name) {
+function generatedPoster(name) {
   const bg = colorForName(name);
   const label = name.replace(/\s*\([^)]*\)\s*$/, ''); // saca el "(País)" del final para el logo
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&size=256&background=${bg}&color=fff&bold=true&format=png&length=3`;
+}
+
+function posterFor(slugOrName, name) {
+  // Se puede llamar con (slug, name) para consultar LOGO_MAP, o con
+  // (name) solo para el caso "no confirmado" del buscador.
+  if (name === undefined) return generatedPoster(slugOrName);
+  return LOGO_MAP[slugOrName] || generatedPoster(name);
 }
 
 function toId(slug, name) {
@@ -114,52 +211,54 @@ function slugify(str) {
 }
 
 async function getCatalog() {
-  return CHANNELS.map((c) => ({
-    id: toId(c.slug, c.name),
-    type: 'tv',
-    name: c.name,
-    poster: posterFor(c.name),
-    posterShape: 'square',
-    background: posterFor(c.name),
-    logo: posterFor(c.name),
-  }));
+  return CHANNELS.map((c) => {
+    const poster = posterFor(c.slug, c.name);
+    return {
+      id: toId(c.slug, c.name),
+      type: 'tv',
+      name: c.name,
+      poster,
+      posterShape: 'square',
+      background: poster,
+      logo: poster,
+    };
+  });
 }
 
 async function search(query) {
   const q = slugify(query);
   const found = CHANNELS.filter((c) => slugify(c.name).includes(q) || c.slug.includes(q));
-  if (found.length > 0) {
-    return found.map((c) => ({
+  // Antes, si no encontraba nada en la parrilla curada, devolvía un
+  // resultado "(no confirmado)" probando el texto como slug directo. Eso
+  // hacía que CUALQUIER búsqueda en Stremio (aunque fuera de una película
+  // o serie sin relación con canales de TV) mostrara un resultado falso
+  // de este addon, ej. buscar "HBO" mostraba "HBO (no confirmado)". Ahora
+  // simplemente no hay match: si no está en la lista curada, no aparece.
+  return found.map((c) => {
+    const poster = posterFor(c.slug, c.name);
+    return {
       id: toId(c.slug, c.name),
       type: 'tv',
       name: c.name,
-      poster: posterFor(c.name),
+      poster,
       posterShape: 'square',
-      background: posterFor(c.name),
-      logo: posterFor(c.name),
-    }));
-  }
-  return [
-    {
-      id: toId(q, query),
-      type: 'tv',
-      name: `${query} (no confirmado)`,
-      poster: posterFor(query),
-      posterShape: 'square',
-    },
-  ];
+      background: poster,
+      logo: poster,
+    };
+  });
 }
 
 async function getMeta(id) {
-  const { name } = fromId(id);
+  const { slug, name } = fromId(id);
+  const poster = posterFor(slug, name);
   return {
     id,
     type: 'tv',
     name,
-    poster: posterFor(name),
+    poster,
     posterShape: 'square',
-    background: posterFor(name),
-    logo: posterFor(name),
+    background: poster,
+    logo: poster,
   };
 }
 
@@ -175,31 +274,24 @@ async function getStreams(id) {
     return [];
   }
 
+  // Solo devolvemos "index" (no "mono"): pedido explícito para bajar el
+  // consumo del server en Railway — cada stream extra que se resuelve
+  // implica otra corrida de Puppeteer si el usuario lo prueba, así que no
+  // vale la pena mantener una opción de respaldo que casi nunca hace falta.
+  const finalUrl = resolved.url.includes('/mono.m3u8')
+    ? resolved.url.replace('/mono.m3u8', '/index.m3u8')
+    : resolved.url;
+
   const streams = [
     {
       name: 'LA18HD',
-      title: `${name} (index)`,
-      url: resolved.url.includes('/mono.m3u8')
-        ? resolved.url.replace('/mono.m3u8', '/index.m3u8')
-        : resolved.url,
+      title: name,
+      url: finalUrl,
       type: 'hls',
       headers: resolved.headers,
       behaviorHints: { notWebReady: true },
     },
   ];
-
-  // Si el link capturado ya era /mono.m3u8, agregamos ese también como
-  // respaldo por si /index.m3u8 no estuviera disponible para este canal.
-  if (resolved.url.includes('/mono.m3u8')) {
-    streams.push({
-      name: 'LA18HD',
-      title: `${name} (mono - respaldo)`,
-      url: resolved.url,
-      type: 'hls',
-      headers: resolved.headers,
-      behaviorHints: { notWebReady: true },
-    });
-  }
 
   console.log(`[la18hd] streams devueltos: ${streams.length}`);
   return streams;
