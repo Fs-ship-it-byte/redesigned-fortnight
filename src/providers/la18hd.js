@@ -85,14 +85,16 @@ const CHANNELS = [
 // https://commons.wikimedia.org/wiki/Category:Logos_of_sports_television_channels
 // (o el buscador de Commons) y agregar la entrada acá con el nombre EXACTO
 // del archivo.
-// Paso 1: pedimos ?width=300 aunque el archivo original sea .svg.
-// Wikimedia lo detecta y devuelve un PNG rasterizado en su propio server
-// (no un SVG crudo). Esto es necesario porque muchos renderizadores de
-// imagen en apps móviles (el que usa Stremio en Android, por ejemplo) no
-// soportan SVG y simplemente no muestran nada — mientras que en
-// desktop/web sí funciona porque el navegador renderiza SVG nativamente.
+// Archivo original de Wikimedia, SIN pedirle una miniatura (?width=...) a
+// MediaWiki. A propósito: MediaWiki tiene un bug conocido generando
+// thumbnails para archivos cuyo nombre contiene "+" (ej. "Disney+ ....svg",
+// "Win Sports+ logo.svg") — a veces la miniatura falla o queda cacheada
+// rota, algo intermitente entre dispositivos/redes. Evitamos ese problema
+// dejando que sea images.weserv.nl (más abajo) quien descargue el SVG
+// ORIGINAL directamente y lo rasterice él mismo — no dependemos en
+// absoluto del pipeline de miniaturas de Wikimedia.
 function rawWikimediaFile(fileName) {
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}?width=300`;
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}`;
 }
 
 // Paso 2: la mayoría de estos logos son franjas MUY anchas (ej. el
@@ -120,11 +122,11 @@ function wikimediaFile(fileName) {
 
 const LOGO_MAP = {
   // ESPN
-  espn: wikimediaFile('ESPN Networks logo.svg'),
-  espn_usa: wikimediaFile('ESPN Networks logo.svg'),
-  espnmx: wikimediaFile('ESPN Networks logo.svg'),
-  espndeportes: wikimediaFile('ESPN Networks logo.svg'),
-  espnu: wikimediaFile('ESPN Networks logo.svg'),
+  espn: wikimediaFile('ESPN wordmark.svg'),
+  espn_usa: wikimediaFile('ESPN wordmark.svg'),
+  espnmx: wikimediaFile('ESPN wordmark.svg'),
+  espndeportes: wikimediaFile('ESPN Deportes.svg'),
+  espnu: wikimediaFile('ESPN U logo.svg'),
   espn2: wikimediaFile('ESPN2 logo.svg'),
   espn2mx: wikimediaFile('ESPN2 logo.svg'),
   espn2_usa: wikimediaFile('ESPN2 logo.svg'),
@@ -149,6 +151,10 @@ const LOGO_MAP = {
   foxsports3mx: wikimediaFile('Fox sports 3 logo.svg'),
   // DSports / DirecTV Sports
   dsports: wikimediaFile('DSports.svg'),
+  // DSports 2 y DSports+ no tienen un archivo propio confirmado en
+  // Wikimedia Commons (solo aparecen en Logopedia/Fandom, que no es un
+  // hotlink tan confiable) — quedan con el logo genérico de DSports como
+  // mejor aproximación disponible por ahora.
   dsports2: wikimediaFile('DSports.svg'),
   dsportsplus: wikimediaFile('DSports.svg'),
   // TUDN
