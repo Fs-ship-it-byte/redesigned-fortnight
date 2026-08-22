@@ -85,15 +85,37 @@ const CHANNELS = [
 // https://commons.wikimedia.org/wiki/Category:Logos_of_sports_television_channels
 // (o el buscador de Commons) y agregar la entrada acá con el nombre EXACTO
 // del archivo.
-// IMPORTANTE: pedimos ?width=300 aunque el archivo original sea .svg.
+// Paso 1: pedimos ?width=300 aunque el archivo original sea .svg.
 // Wikimedia lo detecta y devuelve un PNG rasterizado en su propio server
 // (no un SVG crudo). Esto es necesario porque muchos renderizadores de
 // imagen en apps móviles (el que usa Stremio en Android, por ejemplo) no
 // soportan SVG y simplemente no muestran nada — mientras que en
 // desktop/web sí funciona porque el navegador renderiza SVG nativamente.
-// De paso, el PNG de 300px pesa mucho menos que el SVG/PNG original.
-function wikimediaFile(fileName) {
+function rawWikimediaFile(fileName) {
   return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}?width=300`;
+}
+
+// Paso 2: la mayoría de estos logos son franjas MUY anchas (ej. el
+// wordmark de ESPN es ~5:1). Si Stremio los mete en una tarjeta cuadrada
+// con "cover" (recortar para llenar el cuadro), termina mostrando solo
+// una tira vertical del medio del logo — ilegible. Para evitar eso,
+// pasamos la imagen por images.weserv.nl (proxy de imágenes gratuito) y
+// le pedimos que la ajuste COMPLETA dentro de un lienzo cuadrado con
+// relleno alrededor (fit=contain), en vez de recortarla. bg= es el color
+// de fondo del lienzo (mismo tono oscuro que el resto de la UI).
+function fitToSquare(imageUrl) {
+  const params = new URLSearchParams({
+    url: imageUrl,
+    w: '300',
+    h: '300',
+    fit: 'contain',
+    bg: '1a1a2eff',
+  });
+  return `https://images.weserv.nl/?${params.toString()}`;
+}
+
+function wikimediaFile(fileName) {
+  return fitToSquare(rawWikimediaFile(fileName));
 }
 
 const LOGO_MAP = {
@@ -164,9 +186,9 @@ const LOGO_MAP = {
   sportv: wikimediaFile('SporTV 2017 logo.svg'),
   sportv2: wikimediaFile('SporTV 2017 logo.svg'),
   // Otros (URLs directas pasadas por el usuario, no son de Wikimedia)
-  ecdf_ligapro: 'https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg', // ya es raster (jpg)
+  ecdf_ligapro: fitToSquare('https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg'),
   canal5: wikimediaFile('Canal 5 2016.svg'), // vía Special:FilePath para que se rasterice a PNG
-  calientetv: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png', // ya es raster (png)
+  calientetv: fitToSquare('https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png'),
   // Eventos Disney+ (logo pasado por el usuario)
   disney: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
   disney2: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
