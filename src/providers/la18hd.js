@@ -85,12 +85,16 @@ const CHANNELS = [
 // https://commons.wikimedia.org/wiki/Category:Logos_of_sports_television_channels
 // (o el buscador de Commons) y agregar la entrada acá con el nombre EXACTO
 // del archivo.
-// Paso 1: pedimos ?width=300 aunque el archivo original sea .svg.
+// IMPORTANTE: pedimos ?width=300 aunque el archivo original sea .svg.
 // Wikimedia lo detecta y devuelve un PNG rasterizado en su propio server
 // (no un SVG crudo). Esto es necesario porque muchos renderizadores de
 // imagen en apps móviles (el que usa Stremio en Android, por ejemplo) no
-// soportan SVG y simplemente no muestran nada — mientras que en
-// desktop/web sí funciona porque el navegador renderiza SVG nativamente.
+// soportan SVG y simplemente no muestran nada.
+//
+// OJO: se probó sacar este ?width=300 y dejar que images.weserv.nl
+// descargue el SVG original directo — rompió la mayoría de los logos
+// (weserv no pudo resolver bien la URL de Special:FilePath sin la
+// miniatura). Revertido: este ?width=300 se queda.
 function rawWikimediaFile(fileName) {
   return `https://commons.wikimedia.org/wiki/Special:FilePath/File:${encodeURIComponent(fileName)}?width=300`;
 }
@@ -120,11 +124,11 @@ function wikimediaFile(fileName) {
 
 const LOGO_MAP = {
   // ESPN
-  espn: wikimediaFile('ESPN Networks logo.svg'),
-  espn_usa: wikimediaFile('ESPN Networks logo.svg'),
-  espnmx: wikimediaFile('ESPN Networks logo.svg'),
-  espndeportes: wikimediaFile('ESPN Networks logo.svg'),
-  espnu: wikimediaFile('ESPN Networks logo.svg'),
+  espn: wikimediaFile('ESPN wordmark.svg'),
+  espn_usa: wikimediaFile('ESPN wordmark.svg'),
+  espnmx: wikimediaFile('ESPN wordmark.svg'),
+  espndeportes: wikimediaFile('ESPN Deportes.svg'),
+  espnu: wikimediaFile('ESPN U logo.svg'),
   espn2: wikimediaFile('ESPN2 logo.svg'),
   espn2mx: wikimediaFile('ESPN2 logo.svg'),
   espn2_usa: wikimediaFile('ESPN2 logo.svg'),
@@ -149,6 +153,10 @@ const LOGO_MAP = {
   foxsports3mx: wikimediaFile('Fox sports 3 logo.svg'),
   // DSports / DirecTV Sports
   dsports: wikimediaFile('DSports.svg'),
+  // DSports 2 y DSports+ no tienen un archivo propio confirmado en
+  // Wikimedia Commons (solo aparecen en Logopedia/Fandom, que no es un
+  // hotlink tan confiable) — quedan con el logo genérico de DSports como
+  // mejor aproximación disponible por ahora.
   dsports2: wikimediaFile('DSports.svg'),
   dsportsplus: wikimediaFile('DSports.svg'),
   // TUDN
@@ -189,13 +197,16 @@ const LOGO_MAP = {
   ecdf_ligapro: fitToSquare('https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg'),
   canal5: wikimediaFile('Canal 5 2016.svg'), // vía Special:FilePath para que se rasterice a PNG
   calientetv: fitToSquare('https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png'),
-  // Eventos Disney+ (logo pasado por el usuario)
-  disney: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
-  disney2: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
-  disney3: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
-  disney4: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
-  disney5: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
-  disney6: wikimediaFile('Disney+ 2024 (ESPN variant).svg'),
+  // Eventos Disney+. OJO: 'Disney+ 2024 (ESPN variant).svg' (el que
+  // pasó el usuario originalmente) no cargaba en Android — probamos con
+  // este archivo más simple (sin paréntesis en el nombre) por si el
+  // problema venía de ahí. Si tampoco carga, revisar de nuevo.
+  disney: wikimediaFile('Disney+ logo.svg'),
+  disney2: wikimediaFile('Disney+ logo.svg'),
+  disney3: wikimediaFile('Disney+ logo.svg'),
+  disney4: wikimediaFile('Disney+ logo.svg'),
+  disney5: wikimediaFile('Disney+ logo.svg'),
+  disney6: wikimediaFile('Disney+ logo.svg'),
 };
 
 // Para el resto (sin logo confirmado todavía), generamos una tarjeta con
