@@ -153,12 +153,12 @@ const LOGO_MAP = {
   foxsports3mx: wikimediaFile('Fox sports 3 logo.svg'),
   // DSports / DirecTV Sports
   dsports: wikimediaFile('DSports.svg'),
-  // DSports 2 y DSports+ no tienen un archivo propio confirmado en
-  // Wikimedia Commons (solo aparecen en Logopedia/Fandom, que no es un
-  // hotlink tan confiable) — quedan con el logo genérico de DSports como
-  // mejor aproximación disponible por ahora.
-  dsports2: wikimediaFile('DSports.svg'),
-  dsportsplus: wikimediaFile('DSports.svg'),
+  dsports2: fitToSquare(
+    'https://d18o29lhcg4kda.cloudfront.net/fit-in/360x270/Y2gwMTAwMDAwMDAwMTI4X2xpbmVhcl9jaGFubmVsX3NzbGE_11002_LOGO_360x270.png?timestamp=1787083438554'
+  ),
+  dsportsplus: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/6/6b/DSports_%2B_2022.png/revision/latest?cb=20221115002318&path-prefix=es'
+  ),
   // TUDN
   tudn: wikimediaFile('TUDN Logo.svg'),
   tudn_mx: wikimediaFile('TUDN Logo.svg'),
@@ -179,7 +179,9 @@ const LOGO_MAP = {
   // Win Sports (Colombia)
   winsports: wikimediaFile('Win Sports nuevo logo.svg'),
   winsports2: wikimediaFile('Win Sports nuevo logo.svg'),
-  winsportsplus: wikimediaFile('Win Sports+ logo.svg'),
+  winsportsplus: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/9/99/WinSports%2B2022.png/revision/latest?cb=20221011170127'
+  ),
   // Sky Sports
   sky_sports_laliga: wikimediaFile('Sky Sports 2025.svg'),
   // Argentina
@@ -197,16 +199,25 @@ const LOGO_MAP = {
   ecdf_ligapro: fitToSquare('https://static.elcanaldelfutbol.com/static/images/ECDF512.jpg'),
   canal5: wikimediaFile('Canal 5 2016.svg'), // vía Special:FilePath para que se rasterice a PNG
   calientetv: fitToSquare('https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png'),
-  // Eventos Disney+. OJO: 'Disney+ 2024 (ESPN variant).svg' (el que
-  // pasó el usuario originalmente) no cargaba en Android — probamos con
-  // este archivo más simple (sin paréntesis en el nombre) por si el
-  // problema venía de ahí. Si tampoco carga, revisar de nuevo.
-  disney: wikimediaFile('Disney+ logo.svg'),
-  disney2: wikimediaFile('Disney+ logo.svg'),
-  disney3: wikimediaFile('Disney+ logo.svg'),
-  disney4: wikimediaFile('Disney+ logo.svg'),
-  disney5: wikimediaFile('Disney+ logo.svg'),
-  disney6: wikimediaFile('Disney+ logo.svg'),
+  // Eventos Disney+ (logo directo de Fandom/Logopedia pasado por el usuario)
+  disney: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
+  disney2: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
+  disney3: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
+  disney4: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
+  disney5: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
+  disney6: fitToSquare(
+    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+  ),
 };
 
 // Para el resto (sin logo confirmado todavía), generamos una tarjeta con
