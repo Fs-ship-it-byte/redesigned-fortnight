@@ -1,6 +1,5 @@
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
-const depotv = require('./providers/depotv');
 const la18hd = require('./providers/la18hd');
 const {
   buildProxyPlaylistUrl,
@@ -10,31 +9,34 @@ const {
   handleDirectProxy,
 } = require('./hlsproxy');
 
-const PROVIDERS = { [depotv.PREFIX]: depotv, [la18hd.PREFIX]: la18hd };
+// Catálogo propio: canales de TV en vivo no tienen id de IMDb.
+//
+// NOTA: este addon incluía originalmente un catálogo de "DeporTV -
+// Agenda en vivo" (STP + StreamXX, ver src/providers/depotv.js) además
+// de LA18HD. Se sacó del manifest a pedido — quedó solo la lista de
+// canales de LA18HD. El código de depotv.js sigue en el proyecto por si
+// se quiere retomar más adelante, simplemente no está enganchado acá.
+const PROVIDERS = { [la18hd.PREFIX]: la18hd };
 
 function providerForId(id) {
   return PROVIDERS[id.split(':')[0]];
 }
 
-// Catálogo propio, igual que el addon de CablevisionHd+Streamed: eventos y
-// canales deportivos en vivo no tienen id de IMDb.
 const manifest = {
   id: 'community.storm.depotv',
-  version: '0.2.0',
-  name: 'Storm CS3 DeporTV (agenda + canales en vivo)',
-  description:
-    'Agenda de eventos deportivos en vivo (STP, StreamXX) y lista de canales en vivo (LA18HD). Catálogo propio, se refresca en cada request.',
+  version: '0.3.0',
+  name: 'Storm CS3 LA18HD (canales en vivo)',
+  description: 'Lista de canales de TV en vivo (LA18HD). Catálogo propio.',
   logo: 'https://new.tvpublica.com.ar/wp-content/uploads/2021/05/DeporTVOK.jpg',
   resources: ['catalog', 'meta', 'stream'],
   types: ['tv'],
   catalogs: [
-    { type: 'tv', id: 'agenda', name: 'DeporTV - Agenda en vivo', extra: [{ name: 'search' }] },
     { type: 'tv', id: 'canales', name: 'LA18HD - Canales en vivo', extra: [{ name: 'search' }], posterShape: 'square' },
   ],
-  idPrefixes: [depotv.PREFIX, la18hd.PREFIX],
+  idPrefixes: [la18hd.PREFIX],
 };
 
-const CATALOG_TO_PROVIDER = { agenda: depotv, canales: la18hd };
+const CATALOG_TO_PROVIDER = { canales: la18hd };
 
 const builder = new addonBuilder(manifest);
 
