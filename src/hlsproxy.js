@@ -52,6 +52,18 @@ function isM3u8Url(u) {
   return /\.m3u8(\?|#|$)/i.test(u);
 }
 
+// USE_PROXY=1 -> proxy viejo/completo: TODO pasa por nuestro servidor,
+//   incluidos los segmentos .ts (máxima compatibilidad, máximo gasto de
+//   banda propia). Sirve de red de contención si algún CDN puntual sí
+//   exige headers en los segmentos y no solo en el manifest.
+// USE_PROXY sin setear (default) -> proxy "liviano": el manifest (.m3u8,
+//   texto, KB) sigue pasando por nuestro servidor con los headers
+//   correctos server-side (así funciona en cualquier cliente, incluido
+//   Stremio Web que no puede mandar headers propios) -- pero los
+//   segmentos .ts (el video real, los GB) van DIRECTO al CDN, sin pasar
+//   por nuestro proxy ni gastar banda nuestra.
+const USE_PROXY = process.env.USE_PROXY === '1';
+
 /**
  * Construye la URL pública de nuestro proxy que le damos a Nuvio/Stremio en
  * vez del link directo del CDN. `headers` normalmente trae Referer/Origin/
@@ -106,12 +118,24 @@ function rewriteM3u8(playlistText, baseUrl, headers) {
     }
 
     const absUrl = /^https?:\/\//i.test(trimmed) ? trimmed : makeAbsolute(trimmed, base);
-    const token = encodeProxyToken(absUrl, headers);
     const isPlaylist = nextIsPlaylist || isM3u8Url(absUrl);
     nextIsPlaylist = false;
-    return isPlaylist
-      ? `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`
-      : `${publicUrl()}/hlsproxy/segment/${token}/seg`;
+
+    if (isPlaylist) {
+      // Sub-playlist: sigue pasando por nuestro proxy, para garantizar que
+      // los headers se apliquen siempre del lado del servidor.
+      const token = encodeProxyToken(absUrl, headers);
+      return `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`;
+    }
+
+    // Segmento real: por default va DIRECTO al CDN (no gasta banda
+    // nuestra). Con USE_PROXY=1 también pasa por nuestro proxy, por si el
+    // CDN exige headers para servirlo.
+    if (USE_PROXY) {
+      const token = encodeProxyToken(absUrl, headers);
+      return `${publicUrl()}/hlsproxy/segment/${token}/seg`;
+    }
+    return absUrl;
   });
 
   return out.join('\n');
