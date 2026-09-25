@@ -2,15 +2,15 @@ const fetch = require('node-fetch');
 const { DEFAULT_HEADERS } = require('./http');
 
 // ==========================================
-// PROXY DE HLS (m3u8 + segmentos)
+// PROXY DE HLS -- SOLO EL MANIFEST (liviano)
 // ==========================================
-// Confirmado con LA18HD probando en Stremio Android/iOS: esos clientes NO
-// aplican bien behaviorHints.proxyHeaders (bug conocido), así que no sirve
-// como forma de que el cliente mande el Referer/Origin por su cuenta en los
-// segmentos directos al CDN. Por eso acá, por default, TODO pasa por
-// nuestro proxy (manifest + segmentos) -- es la única forma confiable en
-// mobile. USE_PROXY=0 queda como toggle experimental, solo para probar en
-// Stremio Desktop si algún día hace falta ahorrar banda ahí.
+// Confirmado: el manifest (.m3u8, texto, KB) pasa por acá para reescribirlo
+// y aplicar headers server-side de forma confiable. Los segmentos .ts (el
+// video real, los MB pesados) van DIRECTO al CDN de LA18HD (fubo18.com) --
+// confirmado que funciona reproduciendo INTERNO en Stremio Android, gracias
+// a que el stream lleva behaviorHints.proxyHeaders (ver src/index.js), que
+// hace que el propio cliente mande el Referer/Origin/UA al pedir cada
+// segmento. Cero bytes de video pasan por Render.
 
 function publicUrl() {
   return (process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT || 7000}`).replace(
@@ -51,13 +51,12 @@ function isM3u8Url(u) {
   return /\.m3u8(\?|#|$)/i.test(u);
 }
 
-// USE_PROXY=0 -> proxy liviano (experimental, no confirmado que ande en
-//   mobile): solo el manifest pasa por acá, los segmentos van directo al
-//   CDN sin headers.
-// Default (sin setear, o cualquier valor distinto de "0") -> proxy
-//   completo: manifest + segmentos, todo por nuestro server. Confirmado
-//   que esto es lo que hace falta para que ande en Stremio Android/iOS.
-const USE_PROXY = process.env.USE_PROXY !== '0';
+// USE_PROXY=1 -> proxy completo (segmentos también por Render). Dejar
+//   SOLO como red de contención puntual si algún canal falla -- gasta
+//   banda propia, no usar como default.
+// Default (sin setear) -> proxy liviano CONFIRMADO: solo el manifest pasa
+//   por acá, los segmentos van directo al CDN con proxyHeaders.
+const USE_PROXY = process.env.USE_PROXY === '1';
 
 function rewriteM3u8(playlistText, baseUrl, headers) {
   const lines = playlistText.split(/\r?\n/);
