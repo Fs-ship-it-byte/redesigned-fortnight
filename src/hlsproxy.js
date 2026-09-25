@@ -2,16 +2,15 @@ const fetch = require('node-fetch');
 const { DEFAULT_HEADERS } = require('./http');
 
 // ==========================================
-// PROXY DE HLS (m3u8 + segmentos) -- "liviano"
+// PROXY DE HLS (m3u8 + segmentos)
 // ==========================================
-// Objetivo: gastar la MÍNIMA banda propia posible en Render. El master.m3u8
-// de LA18HD (CDN fubo18.com) trae un token atado al Referer/Origin/UA que lo
-// negoció, así que ese archivo sí tiene que pasar por nuestro server (es
-// texto, pesa KB). Pero los segmentos .ts (el video real, GB) van DIRECTO al
-// CDN -- confirmado que el CDN responde con "Access-Control-Allow-Origin: *",
-// o sea es alcanzable cross-origin sin pasar por nosotros. El Referer que
-// necesitan lo manda el propio cliente de Stremio vía behaviorHints.
-// proxyHeaders (ver src/index.js), no nuestro servidor.
+// Confirmado con LA18HD probando en Stremio Android/iOS: esos clientes NO
+// aplican bien behaviorHints.proxyHeaders (bug conocido), así que no sirve
+// como forma de que el cliente mande el Referer/Origin por su cuenta en los
+// segmentos directos al CDN. Por eso acá, por default, TODO pasa por
+// nuestro proxy (manifest + segmentos) -- es la única forma confiable en
+// mobile. USE_PROXY=0 queda como toggle experimental, solo para probar en
+// Stremio Desktop si algún día hace falta ahorrar banda ahí.
 
 function publicUrl() {
   return (process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT || 7000}`).replace(
@@ -52,15 +51,13 @@ function isM3u8Url(u) {
   return /\.m3u8(\?|#|$)/i.test(u);
 }
 
-// USE_PROXY=1 -> proxy completo: TAMBIÉN los segmentos .ts pasan por
-//   nuestro server (máxima compatibilidad, máximo gasto de banda). Usar
-//   solo como red de contención si algún canal puntual corta y se
-//   confirma que el problema es que el cliente no está mandando bien el
-//   proxyHeaders (por ejemplo, un bug conocido en algunos builds de
-//   Stremio Android).
-// Default (sin setear) -> proxy liviano: solo el manifest pasa por acá,
-//   los segmentos van directo al CDN.
-const USE_PROXY = process.env.USE_PROXY === '1';
+// USE_PROXY=0 -> proxy liviano (experimental, no confirmado que ande en
+//   mobile): solo el manifest pasa por acá, los segmentos van directo al
+//   CDN sin headers.
+// Default (sin setear, o cualquier valor distinto de "0") -> proxy
+//   completo: manifest + segmentos, todo por nuestro server. Confirmado
+//   que esto es lo que hace falta para que ande en Stremio Android/iOS.
+const USE_PROXY = process.env.USE_PROXY !== '0';
 
 function rewriteM3u8(playlistText, baseUrl, headers) {
   const lines = playlistText.split(/\r?\n/);
@@ -97,13 +94,10 @@ function rewriteM3u8(playlistText, baseUrl, headers) {
     nextIsPlaylist = false;
 
     if (isPlaylist) {
-      // Sub-playlist: sigue pasando por nuestro proxy (liviano, es texto).
       const token = encodeProxyToken(absUrl, headers);
       return `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`;
     }
 
-    // Segmento real: directo al CDN por default. El Referer/Origin/UA que
-    // necesita los manda el cliente de Stremio (proxyHeaders), no nosotros.
     if (USE_PROXY) {
       const token = encodeProxyToken(absUrl, headers);
       return `${publicUrl()}/hlsproxy/segment/${token}/seg`;
@@ -191,7 +185,7 @@ async function handleDirectProxy(req, res) {
 module.exports = {
   buildProxyPlaylistUrl: (targetUrl, headers) => {
     const token = encodeProxyToken(targetUrl, headers);
-    return `${publicUrl()}/hlsproxy/playlist/${token}/master.m3u8`;
+    return `${publicUrl()}/hlsproxy/playlist/${token}/index.m3u8`;
   },
   buildProxyDirectUrl: (targetUrl, headers) => {
     const token = encodeProxyToken(targetUrl, headers);
