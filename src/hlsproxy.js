@@ -2,16 +2,16 @@ const fetch = require('node-fetch');
 const { DEFAULT_HEADERS } = require('./http');
 
 // ==========================================
-// PROXY DE HLS (m3u8 + segmentos)
+// PROXY DE HLS (m3u8 + segmentos) -- "liviano"
 // ==========================================
-// Por qué existe esto: el master.m3u8 de estos CDNs lleva casi siempre un
-// token atado al Referer/Origin/UA que lo "negoció". Si le pasamos esa URL
-// cruda a Nuvio/Stremio, el CDN la rechaza porque el player pide el archivo
-// sin esos headers (o con headers distintos). Y no alcanza con reenviar solo
-// el .m3u8 raíz: adentro trae URLs (relativas o absolutas) a sub-playlists y
-// a cada segmento .ts, que TAMBIÉN hay que pasar por nuestro proxy con los
-// mismos headers, o el reproductor las va a pedir directo al CDN y va a
-// fallar igual. Por eso reescribimos el playlist entero, línea por línea.
+// Objetivo: gastar la MÍNIMA banda propia posible en Render. El master.m3u8
+// de LA18HD (CDN fubo18.com) trae un token atado al Referer/Origin/UA que lo
+// negoció, así que ese archivo sí tiene que pasar por nuestro server (es
+// texto, pesa KB). Pero los segmentos .ts (el video real, GB) van DIRECTO al
+// CDN -- confirmado que el CDN responde con "Access-Control-Allow-Origin: *",
+// o sea es alcanzable cross-origin sin pasar por nosotros. El Referer que
+// necesitan lo manda el propio cliente de Stremio vía behaviorHints.
+// proxyHeaders (ver src/index.js), no nuestro servidor.
 
 function publicUrl() {
   return (process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT || 7000}`).replace(
@@ -52,41 +52,16 @@ function isM3u8Url(u) {
   return /\.m3u8(\?|#|$)/i.test(u);
 }
 
-// USE_PROXY=1 -> proxy viejo/completo: TODO pasa por nuestro servidor,
-//   incluidos los segmentos .ts (máxima compatibilidad, máximo gasto de
-//   banda propia). Sirve de red de contención si algún CDN puntual sí
-//   exige headers en los segmentos y no solo en el manifest.
-// USE_PROXY sin setear (default) -> proxy "liviano": el manifest (.m3u8,
-//   texto, KB) sigue pasando por nuestro servidor con los headers
-//   correctos server-side (así funciona en cualquier cliente, incluido
-//   Stremio Web que no puede mandar headers propios) -- pero los
-//   segmentos .ts (el video real, los GB) van DIRECTO al CDN, sin pasar
-//   por nuestro proxy ni gastar banda nuestra.
+// USE_PROXY=1 -> proxy completo: TAMBIÉN los segmentos .ts pasan por
+//   nuestro server (máxima compatibilidad, máximo gasto de banda). Usar
+//   solo como red de contención si algún canal puntual corta y se
+//   confirma que el problema es que el cliente no está mandando bien el
+//   proxyHeaders (por ejemplo, un bug conocido en algunos builds de
+//   Stremio Android).
+// Default (sin setear) -> proxy liviano: solo el manifest pasa por acá,
+//   los segmentos van directo al CDN.
 const USE_PROXY = process.env.USE_PROXY === '1';
 
-/**
- * Construye la URL pública de nuestro proxy que le damos a Nuvio/Stremio en
- * vez del link directo del CDN. `headers` normalmente trae Referer/Origin/
- * User-Agent, los que hagan falta para que el CDN acepte el request.
- */
-function buildProxyPlaylistUrl(targetUrl, headers) {
-  const token = encodeProxyToken(targetUrl, headers);
-  return `${publicUrl()}/hlsproxy/playlist/${token}/master.m3u8`;
-}
-
-/** Para streams que NO son HLS (mp4 directo, etc). */
-function buildProxyDirectUrl(targetUrl, headers) {
-  const token = encodeProxyToken(targetUrl, headers);
-  return `${publicUrl()}/hlsproxy/direct/${token}/file`;
-}
-
-// Reescribe un playlist .m3u8: cada línea de URI (sub-playlist o segmento)
-// pasa a apuntar a nuestro proxy, conservando los headers originales.
-//
-// No decidimos "sub-playlist vs segmento" por la extensión del archivo
-// (algunos CDNs nombran sus sub-playlists distinto), sino por la etiqueta
-// que las precede: #EXT-X-STREAM-INF siempre indica que la línea siguiente
-// es una sub-playlist.
 function rewriteM3u8(playlistText, baseUrl, headers) {
   const lines = playlistText.split(/\r?\n/);
   let nextIsPlaylist = false;
@@ -122,15 +97,13 @@ function rewriteM3u8(playlistText, baseUrl, headers) {
     nextIsPlaylist = false;
 
     if (isPlaylist) {
-      // Sub-playlist: sigue pasando por nuestro proxy, para garantizar que
-      // los headers se apliquen siempre del lado del servidor.
+      // Sub-playlist: sigue pasando por nuestro proxy (liviano, es texto).
       const token = encodeProxyToken(absUrl, headers);
       return `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`;
     }
 
-    // Segmento real: por default va DIRECTO al CDN (no gasta banda
-    // nuestra). Con USE_PROXY=1 también pasa por nuestro proxy, por si el
-    // CDN exige headers para servirlo.
+    // Segmento real: directo al CDN por default. El Referer/Origin/UA que
+    // necesita los manda el cliente de Stremio (proxyHeaders), no nosotros.
     if (USE_PROXY) {
       const token = encodeProxyToken(absUrl, headers);
       return `${publicUrl()}/hlsproxy/segment/${token}/seg`;
@@ -216,8 +189,14 @@ async function handleDirectProxy(req, res) {
 }
 
 module.exports = {
-  buildProxyPlaylistUrl,
-  buildProxyDirectUrl,
+  buildProxyPlaylistUrl: (targetUrl, headers) => {
+    const token = encodeProxyToken(targetUrl, headers);
+    return `${publicUrl()}/hlsproxy/playlist/${token}/master.m3u8`;
+  },
+  buildProxyDirectUrl: (targetUrl, headers) => {
+    const token = encodeProxyToken(targetUrl, headers);
+    return `${publicUrl()}/hlsproxy/direct/${token}/file`;
+  },
   handlePlaylistProxy,
   handleSegmentProxy,
   handleDirectProxy,
