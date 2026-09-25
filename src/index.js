@@ -73,15 +73,30 @@ builder.defineStreamHandler(async ({ id }) => {
     const rawStreams = await provider.getStreams(id);
     const streams = rawStreams
       .filter((s) => s && s.url)
-      .map((s) => ({
-        name: s.name,
-        title: s.title,
-        url:
-          s.type === 'hls'
-            ? buildProxyPlaylistUrl(s.url, s.headers)
-            : buildProxyDirectUrl(s.url, s.headers),
-        behaviorHints: s.behaviorHints,
-      }));
+      .map((s) => {
+        const stream = {
+          name: s.name,
+          title: s.title,
+          url:
+            s.type === 'hls'
+              ? buildProxyPlaylistUrl(s.url, s.headers)
+              : buildProxyDirectUrl(s.url, s.headers),
+          behaviorHints: s.behaviorHints,
+        };
+        // El manifest pasa por nuestro proxy liviano (KB, texto). Los
+        // segmentos .ts que trae adentro van directo al CDN (ver
+        // hlsproxy.js) -- el Referer/Origin/UA que necesitan se los
+        // pedimos al cliente vía proxyHeaders, SIN notWebReady, para que
+        // Stremio reproduzca con su player interno (no el selector de
+        // app externa).
+        if (s.type === 'hls' && s.headers) {
+          stream.behaviorHints = {
+            ...(stream.behaviorHints || {}),
+            proxyHeaders: { request: { ...s.headers } },
+          };
+        }
+        return stream;
+      });
     console.log(`total streams devueltos: ${streams.length}`);
     return { streams };
   } catch (err) {
