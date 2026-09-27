@@ -1,77 +1,94 @@
-const nodeFetch = require('node-fetch');
-const { DEFAULT_HEADERS } = require('../http');
+const cheerio = require('cheerio');
+const { getHtml, DEFAULT_HEADERS } = require('../http');
 const { resolveCanalesPhp, resolveGlobalPhp } = require('../extractors/canalesphp');
 const { resolveGenericEmbed } = require('../extractors/generic');
 
 const PREFIX = 'la18ev';
 const MAIN_URL = 'https://la18hd.su';
+const EVENTOS_URL = `${MAIN_URL}/eventos/`;
 
 // ==========================================
-// DESCUBRIMIENTO DEL ENDPOINT
-// ==========================================
-// La página /eventos/ es una SPA -- el HTML estático no trae ningún
-// evento, se cargan por JS después. No pudimos inspeccionar el tráfico
-// real (bloqueado el scraping automatizado desde donde se armó esto), así
-// que probamos en cascada los patrones típicos de esta MISMA familia de
-// sitios (ver depotv.js: streamx996.one usa /json/agenda550.json,
-// streamtp99a.sbs usa /eventos.json). El primero que responda 200 con un
-// array no vacío se cachea y se usa de ahí en más.
+// SCRAPING DIRECTO DEL HTML -- no es una SPA con API JSON como se
+// asumió al principio: /eventos/ devuelve el HTML ya armado con toda la
+// data adentro. Estructura real (confirmada por el usuario):
 //
-// Si NINGUNO de estos funciona, pegarle a /debug/la18hd-agenda-candidates
-// en el server ya desplegado para ver el detalle de cada intento, y a
-// /debug/la18hd-eventos-page para buscar la URL real del JSON dentro del
-// HTML/JS de la página (grep de ".json"/"/api/").
-const AGENDA_CANDIDATES = [
-  '/json/agenda.json',
-  '/json/eventos.json',
-  '/eventos.json',
-  '/json/agenda550.json',
-  '/api/eventos',
-  '/api/agenda',
-  '/json/partidos.json',
-];
+// <div class="event" data-category="futbol">
+//   <p class="event-name">14:45 - UEFA Nations League: Israel vs Irlanda</p>
+//   <div class="iframe-container">
+//     <input class="iframe-link" value="https://.../canales.php?stream=disney12">
+//     <p class="language_text"></p>
+//   </div>
+//   <div class="buttons_container">
+//     <a class="copy-button" href="...">Ver</a>
+//     <button class="status-button status-live">En vivo</button>
+//   </div>
+// </div>
+//
+// El MISMO partido aparece repetido como varios <div class="event">
+// idénticos en título/hora, cada uno con un link distinto -- eso es
+// justo lo que hay que deduplicar.
+// ==========================================
 
-let _cachedAgendaPath = null;
+const STATUS_LABELS = {
+  'status-live': 'En vivo',
+  'status-next': 'Pronto',
+  'status-finished': 'Finalizado',
+};
+const STATUS_ORDER = { 'status-live': 0, 'status-next': 1, 'status-finished': 2 };
 
-async function tryFetchAgenda(path) {
-  const url = `${MAIN_URL}${path}${path.includes('?') ? '&' : '?'}nocache=${Date.now()}`;
-  const res = await nodeFetch(url, {
-    headers: { ...DEFAULT_HEADERS, Referer: `${MAIN_URL}/eventos/` },
+function parseEventName(text) {
+  // "14:45 - UEFA Nations League: Israel vs República de Irlanda"
+  const m = (text || '').trim().match(/^(\d{1,2}:\d{2})\s*-\s*(.+)$/);
+  if (m) return { time: m[1], title: m[2].trim() };
+  return { time: '', title: (text || '').trim() };
+}
+
+function statusKeyFromClass(classAttr) {
+  const cls = classAttr || '';
+  if (cls.includes('status-live')) return 'status-live';
+  if (cls.includes('status-next')) return 'status-next';
+  if (cls.includes('status-finished')) return 'status-finished';
+  return 'status-next';
+}
+
+async function fetchEventsFromHtml() {
+  const html = await getHtml(EVENTOS_URL, { headers: { Referer: MAIN_URL } });
+  const $ = cheerio.load(html);
+  const events = [];
+
+  $('.event').each((_, el) => {
+    const $el = $(el);
+    const category = $el.attr('data-category') || '';
+    const { time, title } = parseEventName($el.find('.event-name').first().text());
+    if (!title) return;
+
+    let link = $el.find('.iframe-link').first().attr('value') || $el.find('a.copy-button').first().attr('href') || '';
+    link = link.trim();
+    if (!link) return;
+
+    const language = $el.find('.language_text').first().text().trim();
+    const statusKey = statusKeyFromClass($el.find('.status-button').first().attr('class'));
+
+    events.push({
+      category,
+      title,
+      time,
+      status: STATUS_LABELS[statusKey],
+      statusKey,
+      language,
+      link,
+    });
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  if (!Array.isArray(data)) throw new Error('la respuesta no es un array');
-  return data;
-}
 
-async function fetchAgendaJson() {
-  const paths = _cachedAgendaPath
-    ? [_cachedAgendaPath, ...AGENDA_CANDIDATES.filter((p) => p !== _cachedAgendaPath)]
-    : AGENDA_CANDIDATES;
-
-  for (const path of paths) {
-    try {
-      const data = await tryFetchAgenda(path);
-      _cachedAgendaPath = path;
-      console.log(`[la18hd-eventos] agenda encontrada en ${path} (${data.length} entradas)`);
-      return data;
-    } catch (e) {
-      console.log(`[la18hd-eventos] candidato ${path} falló: ${e.message}`);
-    }
-  }
-
-  console.log('[la18hd-eventos] ningún endpoint candidato funcionó -- ver /debug/la18hd-agenda-candidates');
-  return [];
+  console.log(`[la18hd-eventos] ${events.length} fila(s) crudas extraídas de /eventos/`);
+  return events;
 }
 
 // ==========================================
-// DEDUPLICACIÓN POR PARTIDO
+// DEDUPLICACIÓN POR PARTIDO -- el mismo partido, varias filas (una por
+// link/servidor), colapsan a UN SOLO item de catálogo con todas sus
+// fuentes agrupadas adentro.
 // ==========================================
-// La agenda cruda trae UNA fila por cada link/servidor -- el mismo
-// partido con 3 servidores son 3 filas con el mismo title/time/date pero
-// distinto link. Acá se agrupan por la identidad del PARTIDO (no de la
-// fuente) para que el catálogo muestre un solo ítem con múltiples
-// streams adentro, en vez de 3 entradas idénticas repetidas.
 function normalizeTitle(str) {
   return (str || '')
     .toLowerCase()
@@ -82,42 +99,58 @@ function normalizeTitle(str) {
 }
 
 function eventKey(ev) {
-  return `${ev.category || ''}|${ev.date || ''}|${ev.time || ''}|${normalizeTitle(ev.title)}`;
+  return `${ev.category}|${ev.time}|${normalizeTitle(ev.title)}`;
 }
 
 async function getGroupedEvents() {
-  const raw = await fetchAgendaJson();
+  const raw = await fetchEventsFromHtml();
   const groups = new Map();
 
   for (const ev of raw) {
-    if (!ev || !ev.link || !ev.title) continue;
     const key = eventKey(ev);
 
     if (!groups.has(key)) {
       groups.set(key, {
         title: ev.title,
-        time: ev.time || '',
-        date: ev.date || '',
-        category: ev.category || '',
-        status: ev.status || '',
+        time: ev.time,
+        category: ev.category,
+        status: ev.status,
+        statusKey: ev.statusKey,
         sources: [],
       });
     }
 
     const group = groups.get(key);
+    // Si alguna de las filas del mismo partido está "en vivo" mientras
+    // otra ya figura "finalizado" (desincronización entre servidores),
+    // preferimos mostrar el estado más "vivo" del grupo.
+    if (STATUS_ORDER[ev.statusKey] < STATUS_ORDER[group.statusKey]) {
+      group.status = ev.status;
+      group.statusKey = ev.statusKey;
+    }
+
     if (!group.sources.some((s) => s.link === ev.link)) {
       group.sources.push({ link: ev.link, language: ev.language || '' });
     }
   }
 
-  return [...groups.values()];
+  const groupList = [...groups.values()];
+  // En vivo primero, después próximos, después finalizados; dentro de
+  // cada grupo, por hora.
+  groupList.sort((a, b) => {
+    const byStatus = STATUS_ORDER[a.statusKey] - STATUS_ORDER[b.statusKey];
+    if (byStatus !== 0) return byStatus;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+
+  console.log(`[la18hd-eventos] ${raw.length} fila(s) -> ${groupList.length} partido(s) tras deduplicar`);
+  return groupList;
 }
 
 function toId(group) {
   const payload = {
     title: group.title,
     time: group.time,
-    date: group.date,
     category: group.category,
     sources: group.sources,
   };
@@ -130,15 +163,15 @@ function fromId(id) {
 }
 
 function displayName(group) {
-  const bits = [group.title];
-  if (group.time) bits.push(`· ${group.time}`);
+  const bits = [];
+  if (group.time) bits.push(group.time);
+  bits.push(group.title);
   if (group.sources.length > 1) bits.push(`(${group.sources.length} fuentes)`);
-  return bits.join(' ');
+  return bits.join(' · ');
 }
 
 async function getCatalog() {
   const groups = await getGroupedEvents();
-  console.log(`[la18hd-eventos] ${groups.length} partido(s) tras deduplicar`);
   return groups.map((g) => ({
     id: toId(g),
     type: 'tv',
@@ -159,11 +192,13 @@ async function getMeta(id) {
     id,
     type: 'tv',
     name: displayName(g),
-    description: [g.category, g.status].filter(Boolean).join(' · ') || undefined,
   };
 }
 
-// Mismos patrones de resolución que depotv.js (misma familia de sitios).
+// Mismos patrones que depotv.js (misma familia de sitios): canales.php
+// con salto de iframe intermedio, global1/2.php sin salto, y como último
+// recurso el extractor genérico (cubre casos como
+// "tarjetarojita.xyz/sw3.html?get=..." que no son de la18hd.su en sí).
 async function resolveLink(link) {
   try {
     if (link.includes('canales.php?stream=') || link.includes('canal.php?stream=')) {
@@ -179,10 +214,6 @@ async function resolveLink(link) {
   return [];
 }
 
-// Acá está la parte que pediste: un solo partido (un solo id/catálogo)
-// puede traer varias "sources" (varios links/servidores) -- todas se
-// resuelven y se devuelven como distintas opciones de stream dentro de la
-// MISMA ficha, en vez de generar fichas de catálogo repetidas.
 async function getStreams(id) {
   const g = fromId(id);
   const streams = [];
@@ -229,11 +260,10 @@ async function getStreams(id) {
 module.exports = {
   PREFIX,
   MAIN_URL,
-  AGENDA_CANDIDATES,
+  EVENTOS_URL,
   getCatalog,
   search,
   getMeta,
   getStreams,
-  // expuestas para el endpoint de debug en index.js
-  tryFetchAgenda,
+  fetchEventsFromHtml, // expuesta para el endpoint de debug en index.js
 };
