@@ -2,15 +2,16 @@ const fetch = require('node-fetch');
 const { DEFAULT_HEADERS } = require('./http');
 
 // ==========================================
-// PROXY DE HLS -- SOLO EL MANIFEST (liviano)
+// PROXY DE HLS (m3u8 + segmentos)
 // ==========================================
-// Confirmado: el manifest (.m3u8, texto, KB) pasa por acá para reescribirlo
-// y aplicar headers server-side de forma confiable. Los segmentos .ts (el
-// video real, los MB pesados) van DIRECTO al CDN de LA18HD (fubo18.com) --
-// confirmado que funciona reproduciendo INTERNO en Stremio Android, gracias
-// a que el stream lleva behaviorHints.proxyHeaders (ver src/index.js), que
-// hace que el propio cliente mande el Referer/Origin/UA al pedir cada
-// segmento. Cero bytes de video pasan por Render.
+// Por qué existe esto: el master.m3u8 de estos CDNs lleva casi siempre un
+// token atado al Referer/Origin/UA que lo "negoció". Si le pasamos esa URL
+// cruda a Nuvio/Stremio, el CDN la rechaza porque el player pide el archivo
+// sin esos headers (o con headers distintos). Y no alcanza con reenviar solo
+// el .m3u8 raíz: adentro trae URLs (relativas o absolutas) a sub-playlists y
+// a cada segmento .ts, que TAMBIÉN hay que pasar por nuestro proxy con los
+// mismos headers, o el reproductor las va a pedir directo al CDN y va a
+// fallar igual. Por eso reescribimos el playlist entero, línea por línea.
 
 function publicUrl() {
   return (process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT || 7000}`).replace(
@@ -51,13 +52,29 @@ function isM3u8Url(u) {
   return /\.m3u8(\?|#|$)/i.test(u);
 }
 
-// USE_PROXY=1 -> proxy completo (segmentos también por Render). Dejar
-//   SOLO como red de contención puntual si algún canal falla -- gasta
-//   banda propia, no usar como default.
-// Default (sin setear) -> proxy liviano CONFIRMADO: solo el manifest pasa
-//   por acá, los segmentos van directo al CDN con proxyHeaders.
-const USE_PROXY = process.env.USE_PROXY === '1';
+/**
+ * Construye la URL pública de nuestro proxy que le damos a Nuvio/Stremio en
+ * vez del link directo del CDN. `headers` normalmente trae Referer/Origin/
+ * User-Agent, los que hagan falta para que el CDN acepte el request.
+ */
+function buildProxyPlaylistUrl(targetUrl, headers) {
+  const token = encodeProxyToken(targetUrl, headers);
+  return `${publicUrl()}/hlsproxy/playlist/${token}/master.m3u8`;
+}
 
+/** Para streams que NO son HLS (mp4 directo, etc). */
+function buildProxyDirectUrl(targetUrl, headers) {
+  const token = encodeProxyToken(targetUrl, headers);
+  return `${publicUrl()}/hlsproxy/direct/${token}/file`;
+}
+
+// Reescribe un playlist .m3u8: cada línea de URI (sub-playlist o segmento)
+// pasa a apuntar a nuestro proxy, conservando los headers originales.
+//
+// No decidimos "sub-playlist vs segmento" por la extensión del archivo
+// (algunos CDNs nombran sus sub-playlists distinto), sino por la etiqueta
+// que las precede: #EXT-X-STREAM-INF siempre indica que la línea siguiente
+// es una sub-playlist.
 function rewriteM3u8(playlistText, baseUrl, headers) {
   const lines = playlistText.split(/\r?\n/);
   let nextIsPlaylist = false;
@@ -89,19 +106,12 @@ function rewriteM3u8(playlistText, baseUrl, headers) {
     }
 
     const absUrl = /^https?:\/\//i.test(trimmed) ? trimmed : makeAbsolute(trimmed, base);
+    const token = encodeProxyToken(absUrl, headers);
     const isPlaylist = nextIsPlaylist || isM3u8Url(absUrl);
     nextIsPlaylist = false;
-
-    if (isPlaylist) {
-      const token = encodeProxyToken(absUrl, headers);
-      return `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`;
-    }
-
-    if (USE_PROXY) {
-      const token = encodeProxyToken(absUrl, headers);
-      return `${publicUrl()}/hlsproxy/segment/${token}/seg`;
-    }
-    return absUrl;
+    return isPlaylist
+      ? `${publicUrl()}/hlsproxy/playlist/${token}/sub.m3u8`
+      : `${publicUrl()}/hlsproxy/segment/${token}/seg`;
   });
 
   return out.join('\n');
@@ -182,14 +192,8 @@ async function handleDirectProxy(req, res) {
 }
 
 module.exports = {
-  buildProxyPlaylistUrl: (targetUrl, headers) => {
-    const token = encodeProxyToken(targetUrl, headers);
-    return `${publicUrl()}/hlsproxy/playlist/${token}/index.m3u8`;
-  },
-  buildProxyDirectUrl: (targetUrl, headers) => {
-    const token = encodeProxyToken(targetUrl, headers);
-    return `${publicUrl()}/hlsproxy/direct/${token}/file`;
-  },
+  buildProxyPlaylistUrl,
+  buildProxyDirectUrl,
   handlePlaylistProxy,
   handleSegmentProxy,
   handleDirectProxy,
