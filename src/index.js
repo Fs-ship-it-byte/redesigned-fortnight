@@ -102,65 +102,18 @@ app.get('/hlsproxy/segment/:token/:file', handleSegmentProxy);
 app.get('/hlsproxy/direct/:token/:file', handleDirectProxy);
 
 // ==========================================
-// DEBUG: descubrir el endpoint real de la agenda de eventos de LA18HD.
-// No se pudo inspeccionar el tráfico real del sitio al armar esto (es
-// una SPA, el HTML estático no trae nada), así que se prueba una lista
-// de candidatos típicos de esta familia de sitios. Si ninguno funciona:
-//   /debug/la18hd-agenda-candidates  -> detalle de cada intento
-//   /debug/la18hd-eventos-page       -> busca ".json"/"/api/" en el HTML
-//                                        y los <script src="..."> de la
-//                                        página real, por si el endpoint
-//                                        correcto aparece ahí.
+// DEBUG: ver en crudo qué extrae el scraper de /eventos/ antes de
+// deduplicar -- útil si el sitio cambia de estructura y hay que ajustar
+// los selectores en fetchEventsFromHtml (src/providers/la18hd_eventos.js).
 // ==========================================
-app.get('/debug/la18hd-agenda-candidates', async (req, res) => {
-  const nodeFetch = require('node-fetch');
-  const { DEFAULT_HEADERS } = require('./http');
-  const { MAIN_URL, AGENDA_CANDIDATES } = require('./providers/la18hd_eventos');
-
-  res.set('Content-Type', 'text/plain; charset=utf-8');
-  const lines = [];
-
-  for (const path of AGENDA_CANDIDATES) {
-    const url = `${MAIN_URL}${path}${path.includes('?') ? '&' : '?'}nocache=${Date.now()}`;
-    try {
-      const r = await nodeFetch(url, { headers: { ...DEFAULT_HEADERS, Referer: `${MAIN_URL}/eventos/` } });
-      let snippet = '';
-      try {
-        snippet = (await r.text()).slice(0, 200).replace(/\s+/g, ' ');
-      } catch (e) { /* ignore */ }
-      lines.push(`${r.status === 200 ? '✅' : '❌'} [${r.status}] ${path}\n     body: ${snippet}`);
-    } catch (e) {
-      lines.push(`❌ [ERROR] ${path}: ${e.message}`);
-    }
-  }
-
-  res.send(lines.join('\n\n'));
-});
-
-app.get('/debug/la18hd-eventos-page', async (req, res) => {
-  const { getHtml } = require('./http');
-  const { MAIN_URL } = require('./providers/la18hd_eventos');
-
+app.get('/debug/la18hd-eventos-raw', async (req, res) => {
+  const { fetchEventsFromHtml } = require('./providers/la18hd_eventos');
   res.set('Content-Type', 'text/plain; charset=utf-8');
   try {
-    const html = await getHtml(`${MAIN_URL}/eventos/`);
-    const jsonMentions = [...html.matchAll(/[^\s"']{0,40}\.json[^\s"']{0,60}/gi)].map((m) => m[0]);
-    const apiMentions = [...html.matchAll(/["'](\/api\/[^"']+)["']/gi)].map((m) => m[1]);
-    const scriptSrcs = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]);
-
-    res.send(
-      `URL: ${MAIN_URL}/eventos/\n` +
-      `Largo del HTML: ${html.length} caracteres\n\n` +
-      `--- Menciones de ".json" (${jsonMentions.length}) ---\n${jsonMentions.join('\n') || '(ninguna)'}\n\n` +
-      `--- Menciones de "/api/..." (${apiMentions.length}) ---\n${apiMentions.join('\n') || '(ninguna)'}\n\n` +
-      `--- <script src="..."> (${scriptSrcs.length}) ---\n${scriptSrcs.join('\n') || '(ninguno)'}\n\n` +
-      `Si el endpoint real está en uno de los scripts listados arriba, hay que\n` +
-      `abrirlo (ese JS suele traer la URL del fetch hardcodeada) y agregar el\n` +
-      `path correcto al principio de AGENDA_CANDIDATES en\n` +
-      `src/providers/la18hd_eventos.js.`
-    );
+    const events = await fetchEventsFromHtml();
+    res.send(JSON.stringify(events, null, 2));
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}`);
+    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
   }
 });
 
