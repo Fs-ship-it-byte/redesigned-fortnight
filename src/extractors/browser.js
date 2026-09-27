@@ -174,4 +174,40 @@ async function resolveM3u8ViaBrowser(embedUrl, { timeoutMs = 20000, trace = null
   }
 }
 
-module.exports = { resolveM3u8ViaBrowser, getBrowser };
+/**
+ * Abre una página en el navegador headless y devuelve el HTML YA
+ * RENDERIZADO (después de que corrió el JS de la página), esperando a
+ * que aparezca `waitForSelector` en el DOM. Para páginas tipo SPA que
+ * arman su contenido con JS y no traen nada útil en el HTML estático
+ * (fetch/getHtml normal no sirve ahí).
+ */
+async function renderPageHtml(url, { waitForSelector, timeoutMs = 20000 } = {}) {
+  let page;
+  try {
+    const browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setUserAgent(UA);
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+
+    if (waitForSelector) {
+      try {
+        await page.waitForSelector(waitForSelector, { timeout: timeoutMs });
+      } catch (e) {
+        console.log(`[browser] renderPageHtml: nunca apareció "${waitForSelector}" en ${url} (${e.message})`);
+      }
+    }
+
+    return await page.content();
+  } finally {
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        /* noop */
+      }
+    }
+  }
+}
+
+module.exports = { resolveM3u8ViaBrowser, getBrowser, renderPageHtml };
