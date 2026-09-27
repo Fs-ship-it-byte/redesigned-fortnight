@@ -1,5 +1,6 @@
 const cheerio = require('cheerio');
-const { getHtml, DEFAULT_HEADERS } = require('../http');
+const { DEFAULT_HEADERS } = require('../http');
+const { renderPageHtml } = require('../extractors/browser');
 const { resolveCanalesPhp, resolveGlobalPhp } = require('../extractors/canalesphp');
 const { resolveGenericEmbed } = require('../extractors/generic');
 
@@ -36,6 +37,13 @@ const STATUS_LABELS = {
 };
 const STATUS_ORDER = { 'status-live': 0, 'status-next': 1, 'status-finished': 2 };
 
+// Cache corto: cada llamada corre Puppeteer completo (varios segundos),
+// así que si Stremio pide el catálogo varias veces seguidas (paginación,
+// refrescos) no vale la pena relanzar el navegador cada vez.
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos -- la agenda cambia poco a poco
+let _cachedGroups = null;
+let _cachedAt = 0;
+
 function parseEventName(text) {
   // "14:45 - UEFA Nations League: Israel vs República de Irlanda"
   const m = (text || '').trim().match(/^(\d{1,2}:\d{2})\s*-\s*(.+)$/);
@@ -52,7 +60,11 @@ function statusKeyFromClass(classAttr) {
 }
 
 async function fetchEventsFromHtml() {
-  const html = await getHtml(EVENTOS_URL, { headers: { Referer: MAIN_URL } });
+  // El HTML estático de /eventos/ viene vacío -- el #events-container se
+  // llena vía JS después de cargar. Confirmado: un fetch plano devuelve
+  // 0 <div class="event">. Hace falta un navegador real, como con la
+  // resolución de canales de LA18HD.
+  const html = await renderPageHtml(EVENTOS_URL, { waitForSelector: '.event', timeoutMs: 20000 });
   const $ = cheerio.load(html);
   const events = [];
 
@@ -103,6 +115,9 @@ function eventKey(ev) {
 }
 
 async function getGroupedEvents() {
+  const now = Date.now();
+  if (_cachedGroups && now - _cachedAt < CACHE_TTL_MS) return _cachedGroups;
+
   const raw = await fetchEventsFromHtml();
   const groups = new Map();
 
@@ -144,6 +159,8 @@ async function getGroupedEvents() {
   });
 
   console.log(`[la18hd-eventos] ${raw.length} fila(s) -> ${groupList.length} partido(s) tras deduplicar`);
+  _cachedGroups = groupList;
+  _cachedAt = now;
   return groupList;
 }
 
