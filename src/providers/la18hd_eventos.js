@@ -40,9 +40,11 @@ const STATUS_ORDER = { 'status-live': 0, 'status-next': 1, 'status-finished': 2 
 // Cache corto: cada llamada corre Puppeteer completo (varios segundos),
 // así que si Stremio pide el catálogo varias veces seguidas (paginación,
 // refrescos) no vale la pena relanzar el navegador cada vez.
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos -- la agenda cambia poco a poco
+const CACHE_TTL_MS = 2 * 60 * 1000; // pasado esto se refresca en segundo plano
+const MAX_STALE_MS = 30 * 60 * 1000; // pasado esto se espera el refresco (no se sirve data vieja)
 let _cachedGroups = null;
 let _cachedAt = 0;
+let _refreshing = null; // promesa compartida: evita lanzar varios Chromium a la vez
 
 function parseEventName(text) {
   // "14:45 - UEFA Nations League: Israel vs República de Irlanda"
@@ -114,10 +116,7 @@ function eventKey(ev) {
   return `${ev.category}|${ev.time}|${normalizeTitle(ev.title)}`;
 }
 
-async function getGroupedEvents() {
-  const now = Date.now();
-  if (_cachedGroups && now - _cachedAt < CACHE_TTL_MS) return _cachedGroups;
-
+async function buildGroupedEvents() {
   const raw = await fetchEventsFromHtml();
   const groups = new Map();
 
@@ -151,7 +150,7 @@ async function getGroupedEvents() {
 
   const groupList = [...groups.values()];
   // En vivo primero, después próximos, después finalizados; dentro de
-  // cada grupo, por hora.
+  // cada grupo, por hora (solo para ordenar -- ya no se muestra).
   groupList.sort((a, b) => {
     const byStatus = STATUS_ORDER[a.statusKey] - STATUS_ORDER[b.statusKey];
     if (byStatus !== 0) return byStatus;
@@ -159,9 +158,40 @@ async function getGroupedEvents() {
   });
 
   console.log(`[la18hd-eventos] ${raw.length} fila(s) -> ${groupList.length} partido(s) tras deduplicar`);
-  _cachedGroups = groupList;
-  _cachedAt = now;
   return groupList;
+}
+
+function refreshGroups() {
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    try {
+      const groupList = await buildGroupedEvents();
+      // Una lista vacía casi seguro es un fallo transitorio (Chromium
+      // que no cargó a tiempo, etc.) -- no pisamos una caché buena con eso.
+      if (groupList.length > 0 || !_cachedGroups) {
+        _cachedGroups = groupList;
+        _cachedAt = Date.now();
+      }
+      return _cachedGroups;
+    } finally {
+      _refreshing = null;
+    }
+  })();
+  return _refreshing;
+}
+
+// Stale-while-revalidate: si hay datos aunque estén algo viejos se
+// devuelven al instante y se refresca en segundo plano. Importa porque
+// Stremio espera poco por los streams y renderizar la agenda con Chromium
+// tarda varios segundos.
+async function getGroupedEvents() {
+  const age = Date.now() - _cachedAt;
+  if (_cachedGroups && age < CACHE_TTL_MS) return _cachedGroups;
+  if (_cachedGroups && age < MAX_STALE_MS) {
+    refreshGroups().catch((e) => console.log(`[la18hd-eventos] refresco en segundo plano falló: ${e.message}`));
+    return _cachedGroups;
+  }
+  return refreshGroups();
 }
 
 function toId(group) {
@@ -180,11 +210,11 @@ function fromId(id) {
 }
 
 function displayName(group) {
-  const bits = [];
-  if (group.time) bits.push(group.time);
-  bits.push(group.title);
+  // Sin la hora: la agenda de la18hd usa su propia zona horaria y solo
+  // confundía. El orden ya deja los partidos "en vivo" primero.
+  const bits = [group.title];
   if (group.sources.length > 1) bits.push(`(${group.sources.length} fuentes)`);
-  return bits.join(' · ');
+  return bits.join(' ');
 }
 
 async function getCatalog() {
@@ -231,11 +261,38 @@ async function resolveLink(link) {
   return [];
 }
 
-async function getStreams(id) {
-  const g = fromId(id);
+// Etiqueta legible para cada fuente, sacada del propio link:
+//   .../canales.php?stream=disney12          -> "disney12"
+//   .../sw3.html?get=https://x/repro/espn.html -> "espn (x)"
+//   https://fubolazo.com/drm/la1tve.php        -> "fubolazo.com"
+function sourceLabel(link, language) {
+  let label = '';
+  try {
+    const u = new URL(link);
+    const stream = u.searchParams.get('stream');
+    const get = u.searchParams.get('get');
+    if (stream) {
+      label = stream.trim();
+    } else if (get) {
+      const g = new URL(get);
+      const last = g.pathname.split('/').filter(Boolean).pop() || '';
+      label = `${last.replace(/\.[a-z0-9]+$/i, '')} (${g.hostname.replace(/^www\./, '')})`;
+    } else {
+      label = u.hostname.replace(/^www\./, '');
+    }
+  } catch (e) {
+    label = 'Fuente';
+  }
+  return language ? `${label} · ${language}` : label;
+}
+
+// Resuelve TODAS las fuentes de un partido ya agrupado y devuelve una
+// opción de stream por cada una que funcione, dentro de la misma ficha.
+async function getStreamsForGroup(g) {
   const streams = [];
 
   for (const source of g.sources) {
+    const label = sourceLabel(source.link, source.language);
     let urls = [];
     try {
       urls = await resolveLink(source.link);
@@ -248,7 +305,7 @@ async function getStreams(id) {
       if (resolved) {
         streams.push({
           name: 'LA18HD',
-          title: source.language || `Fuente ${streams.length + 1}`,
+          title: label,
           url: resolved.url,
           type: resolved.type,
           headers: resolved.headers,
@@ -261,7 +318,7 @@ async function getStreams(id) {
     urls.forEach((url) => {
       streams.push({
         name: 'LA18HD',
-        title: source.language || `Fuente ${streams.length + 1}`,
+        title: label,
         url,
         type: url.includes('.m3u8') ? 'hls' : 'mp4',
         headers: { Referer: source.link, 'User-Agent': DEFAULT_HEADERS['User-Agent'] },
@@ -270,8 +327,12 @@ async function getStreams(id) {
     });
   }
 
-  console.log(`[la18hd-eventos] streams resueltos: ${streams.length} de ${g.sources.length} fuente(s)`);
+  console.log(`[la18hd-eventos] streams resueltos: ${streams.length} de ${g.sources.length} fuente(s) para "${g.title}"`);
   return streams;
+}
+
+async function getStreams(id) {
+  return getStreamsForGroup(fromId(id));
 }
 
 module.exports = {
@@ -282,5 +343,7 @@ module.exports = {
   search,
   getMeta,
   getStreams,
+  getStreamsForGroup,
+  getGroupedEvents,
   fetchEventsFromHtml, // expuesta para el endpoint de debug en index.js
 };
