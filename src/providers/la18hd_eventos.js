@@ -66,7 +66,13 @@ async function fetchEventsFromHtml() {
   // llena vía JS después de cargar. Confirmado: un fetch plano devuelve
   // 0 <div class="event">. Hace falta un navegador real, como con la
   // resolución de canales de LA18HD.
-  const html = await renderPageHtml(EVENTOS_URL, { waitForSelector: '.event', timeoutMs: 20000 });
+  const html = await renderPageHtml(EVENTOS_URL, {
+    waitForSelector: '.event',
+    timeoutMs: 20000,
+    waitForStableCount: true,
+    stabilityWindowMs: 1500,
+    maxWaitMs: 25000,
+  });
   const $ = cheerio.load(html);
   const events = [];
 
