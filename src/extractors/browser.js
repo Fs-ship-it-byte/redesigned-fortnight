@@ -183,14 +183,23 @@ async function resolveM3u8ViaBrowser(embedUrl, { timeoutMs = 20000, trace = null
  * arman su contenido con JS y no traen nada útil en el HTML estático
  * (fetch/getHtml normal no sirve ahí).
  */
-async function renderPageHtml(url, { waitForSelector, timeoutMs = 20000 } = {}) {
+async function renderPageHtml(
+  url,
+  { waitForSelector, timeoutMs = 20000, waitForStableCount = false, stabilityWindowMs = 1500, maxWaitMs = 25000 } = {}
+) {
   let page;
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
     await page.setUserAgent(UA);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    // networkidle2 en vez de domcontentloaded: esta página dispara varios
+    // fetch/XHR después de la carga inicial para ir armando la agenda por
+    // tandas -- con domcontentloaded nos íbamos antes de que la mayoría
+    // de esos pedidos terminaran.
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: timeoutMs }).catch((e) => {
+      console.log(`[browser] renderPageHtml: goto no llegó a networkidle2 en ${url} (${e.message}), sigo igual`);
+    });
 
     if (waitForSelector) {
       try {
@@ -198,6 +207,28 @@ async function renderPageHtml(url, { waitForSelector, timeoutMs = 20000 } = {}) 
       } catch (e) {
         console.log(`[browser] renderPageHtml: nunca apareció "${waitForSelector}" en ${url} (${e.message})`);
       }
+    }
+
+    // La lista se arma de a tandas (categoría por categoría, o página por
+    // página) -- esperar a que aparezca EL PRIMER ".event" no alcanza,
+    // porque agarramos la foto a mitad de carga y nos perdemos el resto.
+    // Sondeamos la cantidad de elementos hasta que deje de crecer durante
+    // "stabilityWindowMs" seguidos, con un techo de "maxWaitMs" total.
+    if (waitForStableCount && waitForSelector) {
+      const start = Date.now();
+      let lastCount = -1;
+      let lastChangeAt = Date.now();
+      while (Date.now() - start < maxWaitMs) {
+        const count = await page.$$eval(waitForSelector, (els) => els.length).catch(() => 0);
+        if (count !== lastCount) {
+          lastCount = count;
+          lastChangeAt = Date.now();
+        } else if (Date.now() - lastChangeAt >= stabilityWindowMs) {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      console.log(`[browser] renderPageHtml: "${waitForSelector}" se estabilizó en ${lastCount} elemento(s) tras ${Date.now() - start}ms`);
     }
 
     return await page.content();
