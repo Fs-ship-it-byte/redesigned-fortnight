@@ -18,10 +18,12 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 let _browserInstance = null;
 async function getBrowser() {
   if (_browserInstance && _browserInstance.isConnected()) return _browserInstance;
-  _browserInstance = await puppeteer.launch({
+  const launchOpts = {
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  });
+  };
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) launchOpts.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  _browserInstance = await puppeteer.launch(launchOpts);
   return _browserInstance;
 }
 
