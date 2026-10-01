@@ -27,6 +27,64 @@ async function getBrowser() {
   return _browserInstance;
 }
 
+// ==========================================
+// LÍMITE DE CONCURRENCIA -- pensado para el plan free de Render (512MB
+// de RAM). Cada página de Chromium abierta en un sitio tan cargado de
+// publicidad como estos suma fácil 150-250MB; con 512MB totales (de los
+// que ya se van ~250-300MB en SO + Node + el propio Chromium base), no
+// hay margen para resolver varias páginas al mismo tiempo sin arriesgar
+// que el proceso se quede sin memoria y Render lo reinicie.
+//
+// En vez de dejar que todos los pedidos abran su propia página a la vez,
+// se encolan y se procesan de a PUPPETEER_MAX_CONCURRENT_PAGES por vez
+// (default 1 = una sola página de Chromium abierta en todo momento). El
+// resto espera su turno en la cola en vez de competir por memoria.
+//
+// Si se corre en un entorno con más RAM (ver la conversación sobre una
+// VM de 2GB), subir esta variable de entorno permite más resoluciones en
+// paralelo.
+// ==========================================
+const MAX_CONCURRENT_PAGES = Math.max(1, parseInt(process.env.PUPPETEER_MAX_CONCURRENT_PAGES || '1', 10));
+let _activePages = 0;
+const _pageQueue = [];
+
+function acquirePageSlot() {
+  if (_activePages < MAX_CONCURRENT_PAGES) {
+    _activePages++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => _pageQueue.push(resolve));
+}
+
+function releasePageSlot() {
+  if (_pageQueue.length > 0) {
+    const next = _pageQueue.shift();
+    next(); // el que esperaba toma el lugar directamente, sin bajar el contador
+  } else {
+    _activePages--;
+  }
+}
+
+/**
+ * Abre una página nueva respetando el límite de concurrencia de arriba.
+ * Si ya hay MAX_CONCURRENT_PAGES abiertas, espera en cola (logueando
+ * cuánto tiempo esperó, útil para ver si el límite está quedando corto).
+ */
+async function newLimitedPage(browser) {
+  const waitStart = Date.now();
+  await acquirePageSlot();
+  const waitedMs = Date.now() - waitStart;
+  if (waitedMs > 50) {
+    console.log(`[browser] página en cola ${waitedMs}ms antes de poder abrirse (límite: ${MAX_CONCURRENT_PAGES})`);
+  }
+  try {
+    return await browser.newPage();
+  } catch (e) {
+    releasePageSlot(); // si newPage() en sí falla, liberamos el cupo que tomamos
+    throw e;
+  }
+}
+
 /**
  * Abre embedUrl en un navegador headless, cierra cualquier popup de
  * publicidad que se abra, simula clicks de play, e intercepta la
@@ -45,7 +103,7 @@ async function resolveM3u8ViaBrowser(embedUrl, { timeoutMs = 20000, trace = null
 
   try {
     browser = await getBrowser();
-    page = await browser.newPage();
+    page = await newLimitedPage(browser);
     await page.setUserAgent(UA);
     await page.setRequestInterception(true);
 
@@ -172,6 +230,7 @@ async function resolveM3u8ViaBrowser(embedUrl, { timeoutMs = 20000, trace = null
       } catch (e) {
         /* noop */
       }
+      releasePageSlot();
     }
   }
 }
@@ -190,7 +249,7 @@ async function renderPageHtml(
   let page;
   try {
     const browser = await getBrowser();
-    page = await browser.newPage();
+    page = await newLimitedPage(browser);
     await page.setUserAgent(UA);
 
     // networkidle2 en vez de domcontentloaded: esta página dispara varios
@@ -239,6 +298,7 @@ async function renderPageHtml(
       } catch (e) {
         /* noop */
       }
+      releasePageSlot();
     }
   }
 }
