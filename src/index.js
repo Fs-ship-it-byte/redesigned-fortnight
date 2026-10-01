@@ -3,6 +3,7 @@ const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const la18hd = require('./providers/la18hd');
 const la18hdEventos = require('./providers/la18hd_eventos');
 const stremverse = require('./providers/stremverse_bridge');
+const sportsfree = require('./providers/sportsfree_bridge');
 const {
   buildProxyPlaylistUrl,
   buildProxyDirectUrl,
@@ -32,28 +33,32 @@ function providerForId(id) {
 // SHOW_OWN_EVENTS_CATALOG=1 vuelve a publicar el catálogo propio de eventos.
 const SHOW_OWN_EVENTS = process.env.SHOW_OWN_EVENTS_CATALOG === '1';
 
-const streamPrefixes = [la18hd.PREFIX, stremverse.SV_PREFIX];
+const streamPrefixesTv = [la18hd.PREFIX, ...stremverse.SV_ID_PREFIXES];
 const metaPrefixes = [la18hd.PREFIX];
 if (SHOW_OWN_EVENTS) {
-  streamPrefixes.push(la18hdEventos.PREFIX);
+  streamPrefixesTv.push(la18hdEventos.PREFIX);
   metaPrefixes.push(la18hdEventos.PREFIX);
 }
 
 const manifest = {
   id: 'community.storm.depotv',
-  version: '0.5.0',
+  version: '0.6.0',
   name: 'Storm CS3 LA18HD (canales en vivo)',
   description:
-    'Canales de TV en vivo (LA18HD) y fuentes de LA18HD para los eventos del catálogo de StremVerse.',
+    'Canales de TV en vivo (LA18HD) y fuentes de LA18HD para los eventos de StremVerse y Sports Streams.',
   logo: 'https://new.tvpublica.com.ar/wp-content/uploads/2021/05/DeporTVOK.jpg',
-  // "stream" se declara como objeto para poder aceptar ids de StremVerse
-  // (stremevent_...) además de los propios.
+  // "stream" se declara dos veces a propósito: una por tipo ("tv" para
+  // los canales propios + StremVerse, "sport" para Sports Streams), cada
+  // una con SUS prefijos de id -- si fuera una sola entrada, Stremio le
+  // aplicaría los mismos idPrefixes a los dos tipos, mezclando cosas que
+  // no tienen nada que ver.
   resources: [
     'catalog',
     'meta',
-    { name: 'stream', types: ['tv'], idPrefixes: streamPrefixes },
+    { name: 'stream', types: ['tv'], idPrefixes: streamPrefixesTv },
+    { name: 'stream', types: ['sport'], idPrefixes: sportsfree.SF_ID_PREFIXES },
   ],
-  types: ['tv'],
+  types: ['tv', 'sport'],
   catalogs: [
     { type: 'tv', id: 'canales', name: 'LA18HD - Canales en vivo', extra: [{ name: 'search' }], posterShape: 'square' },
     ...(SHOW_OWN_EVENTS
@@ -93,17 +98,24 @@ builder.defineMetaHandler(async ({ id }) => {
   }
 });
 
-builder.defineStreamHandler(async ({ id }) => {
+builder.defineStreamHandler(async ({ type, id }) => {
   try {
     let rawStreams;
-    if (id.startsWith(stremverse.SV_PREFIX)) {
-      // Evento del catálogo de StremVerse: se empareja con la agenda de
-      // LA18HD y se devuelven todas las fuentes de ese partido.
-      rawStreams = await stremverse.getStreamsForStremverseId(id);
-    } else {
-      const provider = providerForId(id);
-      if (!provider) return { streams: [] };
+    const provider = providerForId(id);
+    if (provider) {
+      // Id nuestro (canal o, si SHOW_OWN_EVENTS_CATALOG=1, evento propio).
       rawStreams = await provider.getStreams(id);
+    } else if (type === 'sport') {
+      // Evento del catálogo de Sports Streams.
+      rawStreams = await sportsfree.getStreamsForSportsFreeId(id);
+    } else {
+      // Cualquier otro id ajeno (StremVerse u otro addon de tipo "tv")
+      // -> intentamos emparejarlo con la agenda de LA18HD. No filtramos
+      // por prefijo fijo a propósito: StremVerse usa varios
+      // (stremevent_merged_, replay_, highlight_, ttv:direct_...) y
+      // filtrar por uno solo nos hacía perder partidos igual de válidos
+      // con otro prefijo. Si no hay match, ya devuelve [] sin romper.
+      rawStreams = await stremverse.getStreamsForStremverseId(id);
     }
     const streams = rawStreams
       .filter((s) => s && s.url)
@@ -150,24 +162,31 @@ app.get('/debug/la18hd-eventos-raw', async (req, res) => {
 // ==========================================
 // DEBUG: ver cómo se empareja un evento de StremVerse con la agenda.
 //   /debug/stremverse-match?name=Israel vs Republic of Ireland
-//   /debug/stremverse-match?id=stremevent_XXXX      (lee el nombre del meta)
+//   /debug/stremverse-match?id=stremevent_merged_XXXX   (decodifica el id primero;
+//                                                          si no se puede, lee el meta)
 // Muestra los mejores candidatos con su puntaje (se acepta >= 0.75).
 // ==========================================
 app.get('/debug/stremverse-match', async (req, res) => {
   res.set('Content-Type', 'text/plain; charset=utf-8');
   try {
     let svText = req.query.name;
-    if (!svText && req.query.id) svText = await stremverse.getStremverseText(req.query.id);
-    if (!svText) return res.status(400).send('Uso: ?name=Israel vs Ireland  o  ?id=stremevent_XXXX');
+    let idTeams = null;
+    if (!svText && req.query.id) {
+      idTeams = stremverse.decodeTeamsFromId(req.query.id);
+      svText = idTeams ? `${idTeams[0]} vs ${idTeams[1]}` : await stremverse.getStremverseText(req.query.id);
+    }
+    if (!svText) return res.status(400).send('Uso: ?name=Israel vs Ireland  o  ?id=stremevent_merged_XXXX');
 
     const groups = await la18hdEventos.getGroupedEvents();
-    const ranked = stremverse.rankMatches(groups, svText).slice(0, 5);
+    const ranked = idTeams
+      ? stremverse.rankMatchesByTeams(groups, idTeams[0], idTeams[1]).slice(0, 5)
+      : stremverse.rankMatches(groups, svText).slice(0, 5);
     const lines = ranked.map(
       (m) =>
         `${m.score >= 0.75 ? '✅' : '❌'} ${m.score.toFixed(2)}  [${m.event.status}]  ${m.event.title}  (${m.event.sources.length} fuente(s))`
     );
     res.send(
-      `Texto de StremVerse: "${svText}"\n` +
+      `Texto usado: "${svText}"${idTeams ? ' (decodificado del id, sin red)' : ''}\n` +
       `Eventos en la agenda de LA18HD: ${groups.length}\n\n` +
       (lines.join('\n') || '(ningún candidato con puntaje > 0)')
     );
@@ -190,8 +209,80 @@ app.get('/debug/stremverse-catalog', async (req, res) => {
     const groups = await la18hdEventos.getGroupedEvents();
 
     let matched = 0;
+    let viaId = 0;
     const lines = metas.slice(0, 150).map((m) => {
-      const best = stremverse.bestMatch(groups, m.name || '');
+      const idTeams = stremverse.decodeTeamsFromId(m.id);
+      const best = idTeams
+        ? stremverse.bestMatchByTeams(groups, idTeams[0], idTeams[1])
+        : stremverse.bestMatch(groups, m.name || '');
+      if (best) {
+        matched++;
+        if (idTeams) viaId++;
+      }
+      const via = idTeams ? `(id: ${idTeams[0]} vs ${idTeams[1]})` : '(nombre)';
+      return best
+        ? `✅ ${best.score.toFixed(2)}  ${m.name}  ${via}  ->  ${best.event.title}  (${best.event.sources.length} fuente(s))   [${m.id}]`
+        : `⬜ ---   ${m.name}  ${via}   [${m.id}]`;
+    });
+
+    res.send(
+      `URL: ${url}\n` +
+      `Eventos en StremVerse: ${metas.length} | Agenda LA18HD: ${groups.length} partidos | Con match: ${matched} (${viaId} vía id, ${matched - viaId} vía nombre)\n\n` +
+      lines.join('\n')
+    );
+  } catch (e) {
+    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+  }
+});
+
+// ==========================================
+// DEBUG (Sports Streams) -- mismos endpoints que para StremVerse, pero
+// para sportsfree-us2.highfly.dev (type "sport", sin decode de id).
+//   /debug/sportsfree-match?name=Guatemala vs El Salvador
+//   /debug/sportsfree-match?id=streamed-xxxx      (lee el nombre del meta)
+// ==========================================
+app.get('/debug/sportsfree-match', async (req, res) => {
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  try {
+    let text = req.query.name;
+    if (!text && req.query.id) text = await sportsfree.getSportsFreeText(req.query.id);
+    if (!text) return res.status(400).send('Uso: ?name=Team A vs Team B  o  ?id=streamed-XXXX');
+
+    const groups = await la18hdEventos.getGroupedEvents();
+    const ranked = sportsfree.rankMatches(groups, text).slice(0, 5);
+    const lines = ranked.map(
+      (m) =>
+        `${m.score >= 0.75 ? '✅' : '❌'} ${m.score.toFixed(2)}  [${m.event.status}]  ${m.event.title}  (${m.event.sources.length} fuente(s))`
+    );
+    res.send(
+      `Texto de Sports Streams: "${text}"\n` +
+      `Eventos en la agenda de LA18HD: ${groups.length}\n\n` +
+      (lines.join('\n') || '(ningún candidato con puntaje > 0)')
+    );
+  } catch (e) {
+    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+  }
+});
+
+// Recorre uno de los catálogos de Sports Streams y muestra con qué
+// partido de LA18HD se emparejó cada evento (o si no hubo match).
+//   /debug/sportsfree-catalog                       -> sports_live (default)
+//   /debug/sportsfree-catalog?catalog=sports_football -> otro catálogo
+// (ids de catálogo válidos: sports_live, sports_today, sports_football,
+//  sports_basketball, sports_american_football, sports_hockey, etc. --
+//  ver el manifest de sportsfree-us2.highfly.dev)
+app.get('/debug/sportsfree-catalog', async (req, res) => {
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  try {
+    const catalogId = req.query.catalog || 'sports_live';
+    const url = `${sportsfree.SF_BASE}/catalog/${sportsfree.SF_TYPE}/${encodeURIComponent(catalogId)}.json`;
+    const data = await sportsfree.fetchJson(url);
+    const metas = (data && data.metas) || [];
+    const groups = await la18hdEventos.getGroupedEvents();
+
+    let matched = 0;
+    const lines = metas.slice(0, 150).map((m) => {
+      const best = sportsfree.bestMatch(groups, m.name || '');
       if (best) matched++;
       return best
         ? `✅ ${best.score.toFixed(2)}  ${m.name}  ->  ${best.event.title}  (${best.event.sources.length} fuente(s))   [${m.id}]`
@@ -200,7 +291,7 @@ app.get('/debug/stremverse-catalog', async (req, res) => {
 
     res.send(
       `URL: ${url}\n` +
-      `Eventos en StremVerse: ${metas.length} | Agenda LA18HD: ${groups.length} partidos | Con match: ${matched}\n\n` +
+      `Eventos en Sports Streams: ${metas.length} | Agenda LA18HD: ${groups.length} partidos | Con match: ${matched}\n\n` +
       lines.join('\n')
     );
   } catch (e) {
