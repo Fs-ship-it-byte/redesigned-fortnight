@@ -303,4 +303,111 @@ async function renderPageHtml(
   }
 }
 
-module.exports = { resolveM3u8ViaBrowser, getBrowser, renderPageHtml };
+/**
+ * Para librefutbol2.com: navega a la página del canal, fuerza el
+ * iframe#playerFrame a apuntar al candidato de servidor elegido
+ * (equivalente a hacer click en su botón, sin depender de encontrarlo
+ * por texto/clase), e intercepta la red hasta ver un pedido a
+ * playlist.php -- devuelve esa URL con los headers/cookies con los que
+ * el propio sitio la pidió (el sig que aparece en el HTML estático es un
+ * señuelo fijo que siempre da 403; el real solo se genera corriendo el
+ * JS del sitio).
+ */
+async function resolvePlaylistViaBrowser(channelUrl, candidateEmbedUrl, timeoutMs = 25000) {
+  console.log(`[librefutbol/browser] resolviendo ${candidateEmbedUrl} vía navegador...`);
+
+  let browser;
+  let page;
+  try {
+    browser = await getBrowser();
+    page = await newLimitedPage(browser);
+    await page.setUserAgent(UA);
+    await page.setRequestInterception(true);
+
+    let resolved = null;
+
+    page.on('request', (req) => {
+      const url = req.url();
+      const type = req.resourceType();
+
+      const AD_NOISE = [
+        'sharethis', 'doubleclick', 'adexchangerapid', 'usrpubtrk', 'rlcdn',
+        'crwdcntrl', 'tapad', 'adsrvr', 'eyeota', 'liadm', 'demdex', 'lijit',
+        'agkn', 'dtscout', 'exelator', 'zeotap', 'onaudience', 'rfihub',
+        'pubmatic', 'openx', 'affec.tv', 'rezync', 'thrtle', 'dtscdn',
+        'stackadapt', 'tynt', 'mrktmtrcs', 'intentiq', 'rqtrk', 'amazon-adsystem',
+      ];
+      if (type === 'image' || type === 'font' || type === 'media') {
+        req.abort();
+        return;
+      }
+      if (AD_NOISE.some((needle) => url.includes(needle))) {
+        req.abort();
+        return;
+      }
+
+      if (!resolved && /playlist\.php/i.test(url)) {
+        resolved = {
+          url,
+          headers: {
+            Referer: req.headers()['referer'] || candidateEmbedUrl,
+            Origin: (() => {
+              try {
+                return new URL(req.headers()['referer'] || candidateEmbedUrl).origin;
+              } catch (e) {
+                return undefined;
+              }
+            })(),
+            'User-Agent': UA,
+          },
+        };
+      }
+
+      req.continue();
+    });
+
+    await page.goto(channelUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    console.log(`[librefutbol/browser] página del canal cargada, seteando iframe -> ${candidateEmbedUrl}`);
+
+    await page.evaluate((src) => {
+      const frame = document.querySelector('iframe#playerFrame, iframe#player-frame');
+      if (frame) frame.src = src;
+    }, candidateEmbedUrl);
+
+    const start = Date.now();
+    while (!resolved && Date.now() - start < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    if (!resolved) {
+      console.log(`[librefutbol/browser] timeout (${timeoutMs}ms) sin ver ningún playlist.php para ${candidateEmbedUrl}`);
+    } else {
+      console.log(`[librefutbol/browser] playlist.php capturado: ${resolved.url}`);
+      try {
+        const cdnOrigin = new URL(resolved.url).origin;
+        const cookies = await page.cookies(cdnOrigin, channelUrl);
+        if (cookies.length > 0) {
+          resolved.headers.Cookie = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+        }
+      } catch (e) {
+        /* sin cookies extra, seguimos igual */
+      }
+    }
+
+    return resolved;
+  } catch (e) {
+    console.log(`[librefutbol/browser] error resolviendo ${candidateEmbedUrl}: ${e.message}`);
+    return null;
+  } finally {
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        /* noop */
+      }
+      releasePageSlot();
+    }
+  }
+}
+
+module.exports = { resolveM3u8ViaBrowser, resolvePlaylistViaBrowser, getBrowser, renderPageHtml };
