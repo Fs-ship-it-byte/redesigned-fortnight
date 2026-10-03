@@ -1,6 +1,7 @@
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const la18hd = require('./providers/la18hd');
+const librefutbol = require('./providers/librefutbol');
 const la18hdEventos = require('./providers/la18hd_eventos');
 const stremverse = require('./providers/stremverse_bridge');
 const sportsfree = require('./providers/sportsfree_bridge');
@@ -21,11 +22,48 @@ const {
 // está enganchado acá. En su lugar se agregó la agenda de eventos de
 // LA18HD (la18hd.su/eventos/) como su propio provider
 // (la18hd_eventos.js), separado del catálogo de canales fijos.
-const PROVIDERS = { [la18hd.PREFIX]: la18hd, [la18hdEventos.PREFIX]: la18hdEventos };
+const PROVIDERS = {
+  [la18hd.PREFIX]: la18hd,
+  [librefutbol.PREFIX]: librefutbol,
+  [la18hdEventos.PREFIX]: la18hdEventos,
+};
 
 function providerForId(id) {
   return PROVIDERS[id.split(':')[0]];
 }
+
+// Puente simple (sin matching por nombre, a diferencia de StremVerse/
+// Sports Streams): los canales de librefutbol2.com no son eventos que
+// haya que emparejar con nada -- es otra parrilla de canales fijos, así
+// que simplemente se junta con la de LA18HD en el MISMO catálogo
+// "canales", en vez de abrir una pestaña nueva. getMeta/getStreams de
+// cada canal igual se resuelven por separado por su propio PREFIX (ver
+// providerForId arriba), lo único que se combina acá es el listado.
+const channelCatalogs = [la18hd, librefutbol];
+const combinedChannels = {
+  async getCatalog() {
+    const lists = await Promise.all(
+      channelCatalogs.map((p) =>
+        p.getCatalog().catch((e) => {
+          console.log(`[canales] ${p.PREFIX} falló al listar: ${e.message}`);
+          return [];
+        })
+      )
+    );
+    return lists.flat();
+  },
+  async search(query) {
+    const lists = await Promise.all(
+      channelCatalogs.map((p) =>
+        p.search(query).catch((e) => {
+          console.log(`[canales] ${p.PREFIX} falló al buscar: ${e.message}`);
+          return [];
+        })
+      )
+    );
+    return lists.flat();
+  },
+};
 
 // La agenda de eventos ya no se muestra como catálogo propio (sin
 // imágenes): se usa el catálogo de StremVerse, que sí trae posters, y este
@@ -33,8 +71,8 @@ function providerForId(id) {
 // SHOW_OWN_EVENTS_CATALOG=1 vuelve a publicar el catálogo propio de eventos.
 const SHOW_OWN_EVENTS = process.env.SHOW_OWN_EVENTS_CATALOG === '1';
 
-const streamPrefixesTv = [la18hd.PREFIX, ...stremverse.SV_ID_PREFIXES];
-const metaPrefixes = [la18hd.PREFIX];
+const streamPrefixesTv = [la18hd.PREFIX, librefutbol.PREFIX, ...stremverse.SV_ID_PREFIXES];
+const metaPrefixes = [la18hd.PREFIX, librefutbol.PREFIX];
 if (SHOW_OWN_EVENTS) {
   streamPrefixesTv.push(la18hdEventos.PREFIX);
   metaPrefixes.push(la18hdEventos.PREFIX);
@@ -42,10 +80,10 @@ if (SHOW_OWN_EVENTS) {
 
 const manifest = {
   id: 'community.storm.depotv',
-  version: '0.6.0',
+  version: '0.7.0',
   name: 'Storm CS3 LA18HD (canales en vivo)',
   description:
-    'Canales de TV en vivo (LA18HD) y fuentes de LA18HD para los eventos de StremVerse y Sports Streams.',
+    'Canales de TV en vivo (LA18HD + librefutbol2.com) y fuentes de LA18HD para los eventos de StremVerse y Sports Streams.',
   logo: 'https://new.tvpublica.com.ar/wp-content/uploads/2021/05/DeporTVOK.jpg',
   // "stream" se declara dos veces a propósito: una por tipo ("tv" para
   // los canales propios + StremVerse, "sport" para Sports Streams), cada
@@ -68,7 +106,7 @@ const manifest = {
   idPrefixes: metaPrefixes,
 };
 
-const CATALOG_TO_PROVIDER = { canales: la18hd, ...(SHOW_OWN_EVENTS ? { eventos: la18hdEventos } : {}) };
+const CATALOG_TO_PROVIDER = { canales: combinedChannels, ...(SHOW_OWN_EVENTS ? { eventos: la18hdEventos } : {}) };
 
 const builder = new addonBuilder(manifest);
 
