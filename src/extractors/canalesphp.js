@@ -4,6 +4,7 @@ const { getHtml, DEFAULT_HEADERS } = require('../http');
 const { isPacked, unpack } = require('./unpacker');
 
 function decodeBase64UntilUnchanged(str) {
+  if (/^https?:\/\//i.test(str)) return str; // ya es una URL en claro
   let decoded = str;
   let prev = '';
   while (decoded !== prev) {
