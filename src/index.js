@@ -122,8 +122,9 @@ builder.defineStreamHandler(async ({ type, id }) => {
       .map((s) => ({
         name: s.name,
         title: s.title,
-        url:
-          s.type === 'hls'
+        url: s.light
+          ? s.url
+          : s.type === 'hls'
             ? buildProxyPlaylistUrl(s.url, s.headers)
             : buildProxyDirectUrl(s.url, s.headers),
         behaviorHints: s.behaviorHints,
