@@ -1,4 +1,18 @@
+const fetch = require('node-fetch');
+const { DEFAULT_HEADERS } = require('../http');
 const { resolveM3u8ViaBrowser } = require('../extractors/browser');
+
+// La página trae la URL en claro: var playbackURL = "https://....m3u8?token=..."
+// (el token dura ~5 h, el CDN no exige Referer y devuelve CORS *).
+async function resolveStatic(pageUrl) {
+  const r = await fetch(pageUrl, { headers: { ...DEFAULT_HEADERS, Referer: pageUrl }, timeout: 10000 });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const html = await r.text();
+  const m =
+    html.match(/var\s+playbackURL\s*=\s*"(https?:[^"]+\.m3u8[^"]*)"/) ||
+    html.match(/https?:[^"'\s\\]+\.m3u8[^"'\s\\]*/);
+  return m ? (m[1] || m[0]) : null;
+}
 
 const MAIN_URL = 'https://la18hd.su'; // revisar si cambia el dominio
 const PREFIX = 'la18hd';
@@ -317,6 +331,18 @@ async function getStreams(id) {
   const { slug, name } = fromId(id);
   const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
 
+  // 1) Camino liviano: fetch simple, sin Puppeteer y sin pasar video por el server.
+  try {
+    const direct = await resolveStatic(pageUrl);
+    if (direct) {
+      console.log(`[la18hd] light OK: ${slug}`);
+      return [{ name: 'LA18HD', title: name, url: direct, type: 'hls', light: true }];
+    }
+  } catch (e) {
+    console.log(`[la18hd] resolución estática falló (${e.message}), pruebo navegador`);
+  }
+
+  // 2) Respaldo: navegador headless (requiere WITH_BROWSER=1) + proxy completo.
   console.log(`[la18hd] resolviendo vía navegador headless: ${pageUrl}`);
   const resolved = await resolveM3u8ViaBrowser(pageUrl, { timeoutMs: 20000 });
 
