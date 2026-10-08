@@ -4,13 +4,41 @@ const la18hd = require('./providers/la18hd');
 const la18hdEventos = require('./providers/la18hd_eventos');
 const stremverse = require('./providers/stremverse_bridge');
 const sportsfree = require('./providers/sportsfree_bridge');
+const crypto = require('crypto');
+const { AsyncLocalStorage } = require('async_hooks');
 const {
+  assertConfig,
   buildProxyPlaylistUrl,
   buildProxyDirectUrl,
   handlePlaylistProxy,
   handleSegmentProxy,
   handleDirectProxy,
 } = require('./hlsproxy');
+const live = require('./live');
+
+// ---------------------------------------------------------------------------
+// Configuración obligatoria. Si falta algo, el servidor NO arranca.
+//   GATEWAY_SECRET     = igual que en el Worker
+//   PROXY_SIGNING_KEY  = igual que en el Worker
+//   MEDIA_BASE_URL     = URL pública de ESTE servicio (https://xxx.onrender.com)
+//   GATEWAY_URL        = URL del Worker (https://xxx.workers.dev), para volcar contadores
+// ---------------------------------------------------------------------------
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET || '';
+const GATEWAY_URL = (process.env.GATEWAY_URL || '').replace(/\/+$/, '');
+const ENABLE_DEBUG = process.env.ENABLE_DEBUG === '1';
+{
+  const p = [];
+  if (GATEWAY_SECRET.length < 16) p.push('GATEWAY_SECRET (mínimo 16 caracteres)');
+  if (!/^https:\/\/[^/]+$/.test(GATEWAY_URL)) p.push('GATEWAY_URL (https://<worker>, sin barra final)');
+  if (p.length) { console.error('Configuración inválida o incompleta: ' + p.join(', ')); process.exit(1); }
+  assertConfig(); // PROXY_SIGNING_KEY y MEDIA_BASE_URL
+}
+
+// La cuenta, el IP y los límites los pone el gateway en cada pedido; el
+// handler del SDK no ve el request, así que se pasan por AsyncLocalStorage.
+const ctx = new AsyncLocalStorage();
+const VALID_ID = /^[A-Za-z0-9:_.~%-]{1,200}$/;
+const VALID_ACCT = /^[A-Za-z0-9_-]{1,40}$/;
 
 // Catálogo propio: canales de TV en vivo no tienen id de IMDb.
 //
@@ -77,7 +105,8 @@ builder.defineCatalogHandler(async ({ id, extra }) => {
     const provider = CATALOG_TO_PROVIDER[id];
     if (!provider) return { metas: [] };
     if (extra?.search) {
-      return { metas: await provider.search(extra.search) };
+      const q = String(extra.search).slice(0, 80);
+      return { metas: await provider.search(q) };
     }
     return { metas: await provider.getCatalog() };
   } catch (err) {
@@ -88,6 +117,7 @@ builder.defineCatalogHandler(async ({ id, extra }) => {
 
 builder.defineMetaHandler(async ({ id }) => {
   try {
+    if (!VALID_ID.test(String(id))) return { meta: null };
     const provider = providerForId(id);
     if (!provider) return { meta: null };
     const meta = await provider.getMeta(id);
@@ -98,8 +128,27 @@ builder.defineMetaHandler(async ({ id }) => {
   }
 });
 
+function limitStream(kind, msg) {
+  // Entrada informativa (Stremio la muestra como un "stream" que abre una página con el aviso)
+  return {
+    name: kind === 'cuota' ? '⛔ Tope diario' : '⛔ Límite',
+    title: msg,
+    externalUrl: `${GATEWAY_URL}/aviso/${kind}`,
+  };
+}
+
 builder.defineStreamHandler(async ({ type, id }) => {
   try {
+    const c = ctx.getStore() || {};
+    if (!c.acct || !VALID_ID.test(String(id))) return { streams: [] };
+    if (live.isBlocked(c.acct)) return { streams: [] };
+    const meta = { acct: c.acct, ch: String(id).slice(0, 80), ms: c.maxStreams, bl: c.dailyBytes };
+    if (live.overQuota(c.acct, c.dailyBytes || 0)) {
+      return { streams: [limitStream('cuota', 'Alcanzaste el tope diario de datos. Se restablece a las 00:00 UTC.')] };
+    }
+    if (c.maxStreams && live.atLimit(c.acct, c.ip, c.maxStreams)) {
+      return { streams: [limitStream('limite', `Ya tienes ${live.activeCount(c.acct)} reproducciones activas (máximo ${c.maxStreams}). Cierra una para ver otra.`)] };
+    }
     let rawStreams;
     const provider = providerForId(id);
     if (provider) {
@@ -124,8 +173,8 @@ builder.defineStreamHandler(async ({ type, id }) => {
         title: s.title,
         url:
           s.type === 'hls'
-            ? buildProxyPlaylistUrl(s.url, s.headers)
-            : buildProxyDirectUrl(s.url, s.headers),
+            ? buildProxyPlaylistUrl(s.url, s.headers, meta)
+            : buildProxyDirectUrl(s.url, s.headers, meta),
         behaviorHints: s.behaviorHints,
       }));
     console.log(`total streams devueltos: ${streams.length}`);
@@ -137,12 +186,38 @@ builder.defineStreamHandler(async ({ type, id }) => {
 });
 
 const app = express();
-app.use(getRouter(builder.getInterface()));
+app.disable('x-powered-by');
+// Cuántos proxies hay delante (Render): para leer la IP real del cliente en /hlsproxy/*.
+app.set('trust proxy', parseInt(process.env.TRUSTED_PROXY_HOPS || '1', 10));
 
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
+
+// /hlsproxy/* es público (lo piden los players directo): se protege con la firma del token.
+app.options('/hlsproxy/*', (req, res) => {
+  res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Allow-Methods': 'GET, OPTIONS' });
+  res.sendStatus(204);
+});
 app.get('/hlsproxy/playlist/:token/:file', handlePlaylistProxy);
 app.get('/hlsproxy/segment/:token/:file', handleSegmentProxy);
 app.get('/hlsproxy/direct/:token/:file', handleDirectProxy);
 
+// Todo lo demás (manifest, catalog, meta, stream, debug) exige el secreto del gateway.
+// Se responde 404 (no 401) para no delatar que aquí hay algo.
+const GATEWAY_SECRET_HASH = crypto.createHash('sha256').update(GATEWAY_SECRET).digest();
+app.use((req, res, next) => {
+  const got = crypto.createHash('sha256').update(String(req.get('X-Gateway-Secret') || '')).digest();
+  if (!crypto.timingSafeEqual(got, GATEWAY_SECRET_HASH)) return res.status(404).send('Not found');
+  const acct = String(req.get('X-Account-Id') || '');
+  if (!VALID_ACCT.test(acct)) return res.status(400).json({ error: 'bad account' });
+  const num = (h) => { const n = parseInt(req.get(h) || '0', 10); return Number.isFinite(n) && n > 0 ? n : 0; };
+  ctx.run(
+    { acct, ip: String(req.get('X-Client-Ip') || '').slice(0, 64) || 'unknown', maxStreams: num('X-Max-Streams'), dailyBytes: num('X-Daily-Bytes') },
+    next
+  );
+});
+app.use(getRouter(builder.getInterface()));
+
+if (ENABLE_DEBUG) {
 // ==========================================
 // DEBUG: ver en crudo qué extrae el scraper de /eventos/ antes de
 // deduplicar -- útil si el sitio cambia de estructura y hay que ajustar
@@ -155,7 +230,7 @@ app.get('/debug/la18hd-eventos-raw', async (req, res) => {
     const events = await fetchEventsFromHtml();
     res.send(JSON.stringify(events, null, 2));
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+    res.status(500).send(`Error: ${e.message}`);
   }
 });
 
@@ -191,7 +266,7 @@ app.get('/debug/stremverse-match', async (req, res) => {
       (lines.join('\n') || '(ningún candidato con puntaje > 0)')
     );
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+    res.status(500).send(`Error: ${e.message}`);
   }
 });
 
@@ -231,7 +306,7 @@ app.get('/debug/stremverse-catalog', async (req, res) => {
       lines.join('\n')
     );
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+    res.status(500).send(`Error: ${e.message}`);
   }
 });
 
@@ -260,7 +335,7 @@ app.get('/debug/sportsfree-match', async (req, res) => {
       (lines.join('\n') || '(ningún candidato con puntaje > 0)')
     );
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+    res.status(500).send(`Error: ${e.message}`);
   }
 });
 
@@ -295,17 +370,20 @@ app.get('/debug/sportsfree-catalog', async (req, res) => {
       lines.join('\n')
     );
   } catch (e) {
-    res.status(500).send(`Error: ${e.message}\n\n${e.stack}`);
+    res.status(500).send(`Error: ${e.message}`);
   }
 });
 
+app.get('/debug/whoami', (req, res) => {
+  res.json({ ip: req.ip, xff: req.get('x-forwarded-for') || null, ctx: ctx.getStore() });
+});
+} // fin ENABLE_DEBUG
+
 const PORT = process.env.PORT || 7000;
 app.listen(PORT, () => {
-  const base = process.env.PUBLIC_URL || `http://127.0.0.1:${PORT}`;
-  console.log(`Addon corriendo en ${base}/manifest.json`);
-  if (!process.env.PUBLIC_URL) {
-    console.warn('AVISO: falta PUBLIC_URL. En Railway hay que configurarla.');
-  }
+  console.log(`Addon escuchando en el puerto ${PORT}`);
+  live.start();
+  for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => live.shutdown().finally(() => process.exit(0)));
   // Precalienta la agenda (renderiza /eventos/ con Chromium) para que el
   // primer pedido de streams no tenga que esperar ese render.
   la18hdEventos
