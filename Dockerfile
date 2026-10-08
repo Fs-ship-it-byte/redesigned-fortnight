@@ -43,15 +43,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copiamos primero solo el manifest de deps para aprovechar la cache de
 # Docker en rebuilds cuando no cambió package.json.
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 
-# npm install de Puppeteer descarga Chromium solo (~200MB) automáticamente
-# en este paso -- no hace falta instalarlo aparte.
-RUN npm install --omit=dev
+# Chromium se descarga a una carpeta que el usuario "node" pueda leer.
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+RUN npm ci --omit=dev
 
 COPY . .
+RUN chown -R node:node /app
 
-ENV PORT=7000
+# No correr como root. Chromium arranca con --no-sandbox (ver browser.js),
+# necesario en contenedores sin user namespaces.
+USER node
+
+ENV PORT=7000 NODE_ENV=production
 EXPOSE $PORT
 
-CMD ["sh", "-c", "node src/index.js"]
+CMD ["node", "src/index.js"]
