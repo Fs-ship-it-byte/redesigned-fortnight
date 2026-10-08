@@ -62,6 +62,12 @@ function atLimit(acct, ip, max) {
   return keys.length >= Math.max(1, max);
 }
 function activeCount(acct) { return freshKeys(acct, Date.now()).length; }
+// { cuenta: espectadores activos ahora } (solo cuentas con al menos uno)
+function snapshot() {
+  const out = {};
+  for (const a of viewers.keys()) { const n = activeCount(a); if (n > 0) out[a] = n; }
+  return out;
+}
 
 // --- Banda ------------------------------------------------------------------
 function overQuota(acct, limitBytes) {
@@ -119,4 +125,4 @@ async function shutdown() {
   await Promise.race([flush(true), new Promise((r) => setTimeout(r, 4000))]);
 }
 
-module.exports = { touchViewer, atLimit, activeCount, overQuota, addBytes, isBlocked, flush, start, shutdown };
+module.exports = { touchViewer, atLimit, activeCount, snapshot, overQuota, addBytes, isBlocked, flush, start, shutdown };

@@ -215,6 +215,8 @@ app.use((req, res, next) => {
     next
   );
 });
+// Espectadores activos por cuenta (lo consulta el panel del gateway). Va detrás del secreto.
+app.get('/internal/viewers', (req, res) => res.json({ viewers: live.snapshot() }));
 app.use(getRouter(builder.getInterface()));
 
 if (ENABLE_DEBUG) {
