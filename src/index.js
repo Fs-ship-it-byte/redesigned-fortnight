@@ -131,7 +131,7 @@ builder.defineMetaHandler(async ({ id }) => {
 function limitStream(kind, msg) {
   // Entrada informativa (Stremio la muestra como un "stream" que abre una página con el aviso)
   return {
-    name: kind === 'cuota' ? '⛔ Tope diario' : '⛔ Límite',
+    name: kind === 'cuota' ? '⛔ Tope diario' : kind === 'horas' ? '⛔ Tope de horas' : '⛔ Límite',
     title: msg,
     externalUrl: `${GATEWAY_URL}/aviso/${kind}`,
   };
@@ -142,9 +142,12 @@ builder.defineStreamHandler(async ({ type, id }) => {
     const c = ctx.getStore() || {};
     if (!c.acct || !VALID_ID.test(String(id))) return { streams: [] };
     if (live.isBlocked(c.acct)) return { streams: [] };
-    const meta = { acct: c.acct, ch: String(id).slice(0, 80), ms: c.maxStreams, bl: c.dailyBytes };
+    const meta = { acct: c.acct, ch: String(id).slice(0, 80), ms: c.maxStreams, bl: c.dailyBytes, wl: c.dailySeconds, ip: c.ip !== 'unknown' ? c.ip : '' };
     if (live.overQuota(c.acct, c.dailyBytes || 0)) {
       return { streams: [limitStream('cuota', 'Alcanzaste el tope diario de datos. Se restablece a las 00:00 UTC.')] };
+    }
+    if (live.overWatch(c.acct, c.dailySeconds || 0)) {
+      return { streams: [limitStream('horas', 'Alcanzaste el tope diario de horas de visualización. Se restablece a las 00:00 UTC.')] };
     }
     if (c.maxStreams && live.atLimit(c.acct, c.ip, c.maxStreams)) {
       return { streams: [limitStream('limite', `Ya tienes ${live.activeCount(c.acct)} reproducciones activas (máximo ${c.maxStreams}). Cierra una para ver otra.`)] };
@@ -211,12 +214,12 @@ app.use((req, res, next) => {
   if (!VALID_ACCT.test(acct)) return res.status(400).json({ error: 'bad account' });
   const num = (h) => { const n = parseInt(req.get(h) || '0', 10); return Number.isFinite(n) && n > 0 ? n : 0; };
   ctx.run(
-    { acct, ip: String(req.get('X-Client-Ip') || '').slice(0, 64) || 'unknown', maxStreams: num('X-Max-Streams'), dailyBytes: num('X-Daily-Bytes') },
+    { acct, ip: String(req.get('X-Client-Ip') || '').slice(0, 64) || 'unknown', maxStreams: num('X-Max-Streams'), dailyBytes: num('X-Daily-Bytes'), dailySeconds: num('X-Daily-Seconds') },
     next
   );
 });
 // Espectadores activos por cuenta (lo consulta el panel del gateway). Va detrás del secreto.
-app.get('/internal/viewers', (req, res) => res.json({ viewers: live.snapshot() }));
+app.get('/internal/viewers', (req, res) => res.json({ viewers: live.snapshot(), ...(req.query.detail ? { detail: live.detail() } : {}) }));
 app.use(getRouter(builder.getInterface()));
 
 if (ENABLE_DEBUG) {

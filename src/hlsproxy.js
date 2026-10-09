@@ -108,6 +108,8 @@ function encodeProxyToken(url, headers, kind, meta) {
     if (meta.ch) payload.ch = String(meta.ch).slice(0, 80);
     if (meta.ms) payload.ms = meta.ms;
     if (meta.bl) payload.bl = meta.bl;
+    if (meta.wl) payload.wl = meta.wl;
+    if (meta.ip) payload.i = String(meta.ip).slice(0, 64);   // IP real del cliente vista por el gateway
   }
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   return body + '.' + hmac(PROXY_SIGNING_KEY, body);
@@ -182,17 +184,27 @@ function rewriteM3u8(text, baseUrl, headers, meta) {
 const MAX_PLAYLIST_BYTES = 2 * 1024 * 1024;
 const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
 
+const DEBUG = process.env.ENABLE_DEBUG === '1';
+// IP real del cliente en ESTA petición, como hace el gateway de VOD con CF-Connecting-IP.
+// Render va detrás de Cloudflare: si reenvía esa cabecera, Cloudflare la pone y el cliente no puede falsearla.
+// Si no llega, se usa la IP que firmó el gateway en /stream y, en último caso, la del socket.
+function cfIp(req) { const v = String(req.headers['cf-connecting-ip'] || '').trim(); return net.isIP(v) ? v : ''; }
 function clientIp(req) { return req.ip || req.socket.remoteAddress || 'unknown'; }
 
 // Comprobaciones comunes: cuenta bloqueada, espectadores y banda.
 function gate(req, res, data, kind) {
   const acct = data.a || 'anon';
   if (live.isBlocked(acct)) { res.status(403).send('Cuenta suspendida'); return false; }
-  if (data.ms && !live.touchViewer(acct, clientIp(req), data.ch || '-', data.ms, kind)) {
-    res.status(403).send('Límite de reproducciones simultáneas alcanzado');
-    return false;
+  // La IP que ve Render NO es fiable (cambia por servidor de Cloudflare o IPv4/IPv6): se usa la que firmó el gateway.
+  if (data.ms) {
+    const ip = cfIp(req) || data.i || clientIp(req);
+    const r = live.touchViewer(acct, ip, data.ch || '-', data.ms, kind);
+    if (!r) { res.status(403).send('Límite de reproducciones simultáneas alcanzado'); return false; }
+    if (r === 'new' && DEBUG) // diagnóstico: qué IP llega por cada vía (sin tokens)
+      console.log(`[viewer] nuevo ch=${data.ch} cf=${req.headers['cf-connecting-ip'] || '-'} xff=${req.headers['x-forwarded-for'] || '-'} req.ip=${req.ip} firmada=${data.i || '-'}`);
   }
   if (live.overQuota(acct, data.bl || 0)) { res.status(429).send('Tope diario de datos alcanzado'); return false; }
+  if (live.overWatch(acct, data.wl || 0)) { res.status(429).send('Tope diario de horas alcanzado'); return false; }
   return true;
 }
 
@@ -205,7 +217,7 @@ async function handlePlaylistProxy(req, res) {
     if (!up.ok) { up.body.destroy(); return res.status(up.status === 404 ? 404 : 502).send('No se pudo obtener el playlist'); }
     const text = await up.text();
     if (text.length > MAX_PLAYLIST_BYTES) return res.status(502).send('Playlist demasiado grande');
-    const out = rewriteM3u8(text, data.u, data.h, { acct: data.a, ch: data.ch, ms: data.ms, bl: data.bl });
+    const out = rewriteM3u8(text, data.u, data.h, { acct: data.a, ch: data.ch, ms: data.ms, bl: data.bl, wl: data.wl, ip: data.i });
     live.addBytes(data.a || 'anon', Buffer.byteLength(out));
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Cache-Control', 'no-store');
