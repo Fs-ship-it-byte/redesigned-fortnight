@@ -37,7 +37,7 @@ const ENABLE_DEBUG = process.env.ENABLE_DEBUG === '1';
 // La cuenta, el IP y los límites los pone el gateway en cada pedido; el
 // handler del SDK no ve el request, así que se pasan por AsyncLocalStorage.
 const ctx = new AsyncLocalStorage();
-const VALID_ID = /^[A-Za-z0-9:_.~%-]{1,200}$/;
+const VALID_ID = /^[A-Za-z0-9:_.~%-]{1,4000}$/; // los ids de eventos llevan las fuentes en base64 (~450+ caracteres)
 const VALID_ACCT = /^[A-Za-z0-9_-]{1,40}$/;
 
 // Catálogo propio: canales de TV en vivo no tienen id de IMDb.
