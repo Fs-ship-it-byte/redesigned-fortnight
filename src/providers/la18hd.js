@@ -1,4 +1,8 @@
 const { resolveM3u8ViaBrowser } = require('../extractors/browser');
+const magma = require('./magma');
+
+// DISABLE_LA18=1: no se resuelve el canal por LA18HD (no se abre Chromium); solo se ofrece MAGMA si hay equivalente.
+const DISABLE_LA18 = process.env.DISABLE_LA18 === '1';
 
 const MAIN_URL = 'https://la18hd.su'; // revisar si cambia el dominio
 const PREFIX = 'la18hd';
@@ -315,20 +319,25 @@ async function getMeta(id) {
 
 async function getStreams(id) {
   const { slug, name } = fromId(id);
-  const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
+  const extra = magma.streamsForChannel(slug, name); // mismo canal en la lista MAGMA (m3u8 directo)
 
+  if (DISABLE_LA18) {
+    console.log(`[la18hd] desactivado (DISABLE_LA18=1); MAGMA: ${extra.length}`);
+    return extra;
+  }
+
+  const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
   console.log(`[la18hd] resolviendo vía navegador headless: ${pageUrl}`);
   const resolved = await resolveM3u8ViaBrowser(pageUrl, { timeoutMs: 20000 });
 
   if (!resolved) {
     console.log(`[la18hd] no se encontró ningún m3u8 para ${slug}`);
-    return [];
+    return extra; // aunque LA18HD falle, MAGMA puede seguir sirviendo
   }
 
   // Solo devolvemos "index" (no "mono"): pedido explícito para bajar el
-  // consumo del server en Railway — cada stream extra que se resuelve
-  // implica otra corrida de Puppeteer si el usuario lo prueba, así que no
-  // vale la pena mantener una opción de respaldo que casi nunca hace falta.
+  // consumo del server — cada stream extra que se resuelve implica otra
+  // corrida de Puppeteer si el usuario lo prueba.
   const finalUrl = resolved.url.includes('/mono.m3u8')
     ? resolved.url.replace('/mono.m3u8', '/index.m3u8')
     : resolved.url;
@@ -342,9 +351,10 @@ async function getStreams(id) {
       headers: resolved.headers,
       behaviorHints: { notWebReady: true },
     },
+    ...extra,
   ];
 
-  console.log(`[la18hd] streams devueltos: ${streams.length}`);
+  console.log(`[la18hd] streams devueltos: ${streams.length} (${extra.length} de MAGMA)`);
   return streams;
 }
 
