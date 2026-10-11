@@ -3,6 +3,11 @@ const { DEFAULT_HEADERS } = require('../http');
 const { renderPageHtml } = require('../extractors/browser');
 const { resolveCanalesPhp, resolveGlobalPhp } = require('../extractors/canalesphp');
 const { resolveGenericEmbed } = require('../extractors/generic');
+const magma = require('./magma');
+
+// DISABLE_LA18=1: no se resuelven las fuentes de LA18HD (no se abre Chromium para ellas).
+// La agenda sí se sigue leyendo, porque de ella sale el canal de cada fuente para emparejarlo con MAGMA.
+const DISABLE_LA18 = process.env.DISABLE_LA18 === '1';
 
 const PREFIX = 'la18ev';
 const MAIN_URL = 'https://la18hd.su';
@@ -294,46 +299,62 @@ function sourceLabel(link, language) {
 
 // Resuelve TODAS las fuentes de un partido ya agrupado y devuelve una
 // opción de stream por cada una que funcione, dentro de la misma ficha.
-async function getStreamsForGroup(g) {
-  const streams = [];
-
-  for (const source of g.sources) {
-    const label = sourceLabel(source.link, source.language);
-    let urls = [];
-    try {
-      urls = await resolveLink(source.link);
-    } catch (e) {
-      console.log(`[la18hd-eventos] error resolviendo ${source.link}: ${e.message}`);
-    }
-
-    if (urls.length === 0) {
-      const resolved = await resolveGenericEmbed(source.link, source.link).catch(() => null);
-      if (resolved) {
-        streams.push({
-          name: 'LA18HD',
-          title: label,
-          url: resolved.url,
-          type: resolved.type,
-          headers: resolved.headers,
-          behaviorHints: { notWebReady: resolved.type === 'hls' },
-        });
-      }
-      continue;
-    }
-
-    urls.forEach((url) => {
-      streams.push({
-        name: 'LA18HD',
-        title: label,
-        url,
-        type: url.includes('.m3u8') ? 'hls' : 'mp4',
-        headers: { Referer: source.link, 'User-Agent': DEFAULT_HEADERS['User-Agent'] },
-        behaviorHints: { notWebReady: url.includes('.m3u8') },
-      });
-    });
+// Resuelve UNA fuente de LA18HD y devuelve sus opciones de stream (puede ser []).
+async function resolveSourceStreams(source) {
+  const out = [];
+  const label = sourceLabel(source.link, source.language);
+  let urls = [];
+  try {
+    urls = await resolveLink(source.link);
+  } catch (e) {
+    console.log(`[la18hd-eventos] error resolviendo ${source.link}: ${e.message}`);
   }
 
-  console.log(`[la18hd-eventos] streams resueltos: ${streams.length} de ${g.sources.length} fuente(s) para "${g.title}"`);
+  if (urls.length === 0) {
+    const resolved = await resolveGenericEmbed(source.link, source.link).catch(() => null);
+    if (resolved) {
+      out.push({
+        name: 'LA18HD',
+        title: label,
+        url: resolved.url,
+        type: resolved.type,
+        headers: resolved.headers,
+        behaviorHints: { notWebReady: resolved.type === 'hls' },
+      });
+    }
+    return out;
+  }
+
+  urls.forEach((url) => {
+    out.push({
+      name: 'LA18HD',
+      title: label,
+      url,
+      type: url.includes('.m3u8') ? 'hls' : 'mp4',
+      headers: { Referer: source.link, 'User-Agent': DEFAULT_HEADERS['User-Agent'] },
+      behaviorHints: { notWebReady: url.includes('.m3u8') },
+    });
+  });
+  return out;
+}
+
+// Devuelve una opción de stream por cada fuente que funcione, dentro de la misma ficha.
+// Tras las opciones de cada fuente de LA18HD se añade el mismo canal de MAGMA (si existe en su lista).
+async function getStreamsForGroup(g) {
+  const streams = [];
+  const seen = new Set(); // urls de MAGMA ya añadidas
+  let magmaCount = 0;
+
+  for (const source of g.sources) {
+    if (!DISABLE_LA18) streams.push(...(await resolveSourceStreams(source)));
+    if (magmaCount < magma.MAX_TOTAL) {
+      const extra = magma.streamsForSource(source, seen).slice(0, magma.MAX_TOTAL - magmaCount);
+      magmaCount += extra.length;
+      streams.push(...extra);
+    }
+  }
+
+  console.log(`[la18hd-eventos] streams para "${g.title}": ${streams.length} (${magmaCount} de MAGMA)${DISABLE_LA18 ? ' [LA18HD desactivado]' : ''}`);
   return streams;
 }
 
