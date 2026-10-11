@@ -237,9 +237,17 @@ function scoreEvent(group, svText) {
   return (a + b) / 2;
 }
 
+// Con texto libre ("Troyes vs Marseille") se intenta primero separar los dos equipos y compararlos
+// uno a uno (tolera "Troyes" / "Estac Troyes", siglas y abreviaturas). Si no se puede separar
+// (ej. "Liga Portugal Betclic"), o si el método anterior puntúa más alto, se conserva el anterior.
 function rankMatches(groups, svText) {
+  // las horas ("14:45") confundirían al separador de competición ":" de extractTeams
+  const sides = extractTeams(String(svText || '').replace(/\b\d{1,2}:\d{2}\b/g, ' ').replace(/\s+/g, ' '));
   return groups
-    .map((g) => ({ event: g, score: scoreEvent(g, svText) }))
+    .map((g) => ({
+      event: g,
+      score: Math.max(scoreEvent(g, svText), sides ? scoreEventWithTeams(g, sides[0], sides[1]) : 0),
+    }))
     .filter((m) => m.score > 0)
     .sort((x, y) => {
       if (y.score !== x.score) return y.score - x.score;
