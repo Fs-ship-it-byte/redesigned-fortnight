@@ -77,6 +77,12 @@ const ALIAS_GROUPS = [
   ['kazakhstan', 'kazajistan'],
   ['qatar', 'catar'],
   ['iraq', 'irak'],
+  // clubes con abreviaturas comunes en las agendas
+  ['paris saint germain', 'psg', 'paris sg', 'paris saint-germain'],
+  ['manchester united', 'man united', 'man utd', 'manchester utd'],
+  ['manchester city', 'man city'],
+  ['atletico madrid', 'atl madrid', 'atletico de madrid'],
+  ['sporting cristal', 'sporting cristal lima'],
 ];
 
 // variantes más largas primero, para que "irlanda del norte" gane a "irlanda"
@@ -96,9 +102,19 @@ const STOPWORDS = new Set([
   'de', 'del', 'la', 'el', 'los', 'las', 'the', 'of', 'and', 'y', 'vs', 'v',
 ]);
 
+// Abreviaturas que las agendas usan como prefijo ("Atl. Madrid", "Dep. La Coruña", "Univ. Católica").
+// Se expanden como palabra completa, así "Atl." y "Atlético" terminan siendo el mismo token.
+const ABBREVIATIONS = {
+  atl: 'atletico', ath: 'athletic', dep: 'deportivo', depor: 'deportivo', depto: 'deportivo',
+  univ: 'universidad', unev: 'universidad', man: 'manchester', utd: 'united', intl: 'internacional',
+  nac: 'nacional', st: 'saint', sta: 'santa', sto: 'santo', cia: 'compania', sp: 'sporting',
+};
+
 function canonizeText(text) {
   let t = normalize(text);
   for (const [rx, canon] of ALIAS_REGEXES) t = t.replace(rx, canon);
+  // abreviaturas: palabra suelta (ya sin punto) -> forma completa
+  t = t.split(' ').map((w) => ABBREVIATIONS[w] || w).join(' ');
   return t;
 }
 
@@ -172,17 +188,43 @@ const MIN_TEAM_SCORE = 0.6; // cada equipo debe coincidir al menos así
 const MIN_EVENT_SCORE = 0.75; // y el promedio de los dos, al menos esto
 const STATUS_RANK = { 'status-live': 0, 'status-next': 1, 'status-finished': 2 };
 
+// ¿"UTC" son las iniciales de "Universidad Técnica de Cajamarca"?
+function isAcronymOf(shortToks, longToks) {
+  if (shortToks.length !== 1) return false;
+  const a = shortToks[0];
+  if (a.length < 2 || a.length > 5 || longToks.length < 2) return false;
+  return longToks.map((t) => t[0]).join('') === a;
+}
+
+// Similitud entre DOS nombres de equipo (uno de cada lado), tolerando que una
+// fuente use el nombre corto y la otra el largo ("Vitória" / "Vitória Guimarães")
+// y las siglas ("UTC" / "Universidad Técnica de Cajamarca").
+function teamSim(nameA, nameB) {
+  const ta = tokens(nameA);
+  const tb = tokens(nameB);
+  if (!ta.length || !tb.length) return 0;
+  const cover = (x, y) => {
+    const ys = new Set(y);
+    return x.reduce((acc, t) => acc + tokenPresence(t, ys), 0) / x.length;
+  };
+  const ab = cover(ta, tb);
+  const ba = cover(tb, ta);
+  let sim = Math.min(ab, ba);                       // mismos nombres
+  const contained = Math.max(ab, ba);               // uno contenido en el otro
+  if (contained >= 1) sim = Math.max(sim, 0.85);    // un poco menos que igualdad exacta
+  if (isAcronymOf(ta, tb) || isAcronymOf(tb, ta)) sim = Math.max(sim, 0.9);
+  return sim;
+}
+
 function scoreEventWithTeams(group, teamA, teamB) {
-  const svTokens = new Set(tokens(teamA + ' ' + teamB));
   const teams = extractTeams(group.title);
   if (!teams) return 0;
-  const a1 = teamScore(teams[0], svTokens);
-  const b1 = teamScore(teams[1], svTokens);
-  // probamos los dos órdenes posibles (a veces StremVerse y LA18HD listan
-  // el local/visitante al revés)
-  const direct = Math.min(a1, b1);
-  if (direct >= MIN_TEAM_SCORE) return (a1 + b1) / 2;
-  return 0;
+  // se prueban los dos órdenes (a veces un lado lista local/visitante al revés)
+  const direct = [teamSim(teams[0], teamA), teamSim(teams[1], teamB)];
+  const swapped = [teamSim(teams[0], teamB), teamSim(teams[1], teamA)];
+  const best = Math.min(...direct) >= Math.min(...swapped) ? direct : swapped;
+  if (Math.min(...best) < MIN_TEAM_SCORE) return 0;
+  return (best[0] + best[1]) / 2;
 }
 
 function scoreEvent(group, svText) {
@@ -221,9 +263,45 @@ function bestMatch(groups, svText) {
   return ranked.length && ranked[0].score >= MIN_EVENT_SCORE ? ranked[0] : null;
 }
 
-function bestMatchByTeams(groups, teamA, teamB) {
+// ---------- ANCLA ÚNICA ----------
+// Si el emparejamiento normal falla (un equipo se escribe muy distinto en cada lado), se acepta el
+// partido cuando UNO de los equipos coincide casi exacto con un solo partido de la agenda de hoy.
+// Para no mezclar partidos distintos solo se usa cuando:
+//   - se conoce la hora del partido (viene en el id) y es de hoy (±14 h);
+//   - la coincidencia es exacta (mismas palabras, o sigla), no "contenido en";
+//   - ese equipo aparece en UN solo partido de la agenda (si el club tiene dos, no se acepta nada);
+//   - si el OTRO equipo también ancla, ancla en el MISMO partido (si apuntan a partidos distintos, se rechaza).
+const ANCHOR_SCORE = 0.76;      // justo por encima de MIN_EVENT_SCORE
+const ANCHOR_WINDOW_MS = 14 * 3600 * 1000;
+
+function strongAnchor(name, other) {
+  const sim = teamSim(name, other);
+  if (sim < 0.9) return false;
+  const toks = tokens(name);
+  const isAcr = isAcronymOf(toks, tokens(other)) || isAcronymOf(tokens(other), toks);
+  return isAcr || toks.join('').length >= 5;
+}
+
+function anchorMatch(groups, teamA, teamB, opts = {}) {
+  const ts = Number(opts.ts);
+  if (!Number.isFinite(ts) || ts <= 0) return null;                   // sin hora no se arriesga
+  if (Math.abs(Date.now() - ts) > ANCHOR_WINDOW_MS) return null;      // otro día: probablemente un resumen/repetición
+  const hitsFor = (sv) => groups.filter((g) => {
+    const teams = extractTeams(g.title);
+    return teams && teams.some((t) => strongAnchor(t, sv));
+  });
+  const a = hitsFor(teamA);
+  const b = hitsFor(teamB);
+  if (a.length > 1 || b.length > 1) return null;                      // el club juega en dos partidos
+  if (a.length === 1 && b.length === 1 && a[0] !== b[0]) return null; // cada equipo apunta a un partido distinto
+  const hit = a[0] || b[0];
+  return hit ? { event: hit, score: ANCHOR_SCORE, anchor: true } : null;
+}
+
+function bestMatchByTeams(groups, teamA, teamB, opts) {
   const ranked = rankMatchesByTeams(groups, teamA, teamB);
-  return ranked.length && ranked[0].score >= MIN_EVENT_SCORE ? ranked[0] : null;
+  if (ranked.length && ranked[0].score >= MIN_EVENT_SCORE) return ranked[0];
+  return anchorMatch(groups, teamA, teamB, opts);
 }
 
 
@@ -240,4 +318,6 @@ module.exports = {
   rankMatchesByTeams,
   bestMatch,
   bestMatchByTeams,
+  anchorMatch,
+  teamSim,
 };
