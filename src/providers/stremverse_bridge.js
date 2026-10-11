@@ -76,9 +76,14 @@ function parseSlugTeams(slug) {
   const lastDash = left.lastIndexOf('-');
   const teamA = lastDash === -1 ? left : left.slice(lastDash + 1);
 
-  const teamB = right.replace(/\d{6,}\s*$/, '').trim(); // saca el timestamp pegado al final
-
-  return teamA && teamB ? [teamA.trim(), teamB] : null;
+  const tsM = right.match(/(\d{10,13})\s*$/);              // timestamp unix (s o ms) pegado al final
+  const teamB = right.replace(/\d{6,}\s*$/, '').trim();    // se saca del nombre del equipo
+  if (!(teamA && teamB)) return null;
+  let ts = tsM ? Number(tsM[1]) : 0;
+  if (ts && ts < 1e12) ts *= 1000;                         // segundos -> ms
+  const out = [teamA.trim(), teamB];
+  out.ts = ts;                                             // hora del partido, si el id la trae
+  return out;
 }
 
 function decodeTeamsFromId(id) {
@@ -163,10 +168,10 @@ async function getStreamsForStremverseId(id) {
   // falta pedirle nada a StremVerse.
   const idTeams = decodeTeamsFromId(id);
   if (idTeams) {
-    const match = matcher.bestMatchByTeams(groups, idTeams[0], idTeams[1]);
+    const match = matcher.bestMatchByTeams(groups, idTeams[0], idTeams[1], { ts: idTeams.ts });
     if (match) {
       console.log(
-        `[stremverse] id -> "${idTeams[0]} vs ${idTeams[1]}" -> "${match.event.title}" (score ${match.score.toFixed(2)}, ${match.event.sources.length} fuente(s))`
+        `[stremverse] id -> "${idTeams[0]} vs ${idTeams[1]}" -> "${match.event.title}" (score ${match.score.toFixed(2)}${match.anchor ? ', por ancla única' : ''}, ${match.event.sources.length} fuente(s))`
       );
       return la18hdEventos.getStreamsForGroup(match.event);
     }
