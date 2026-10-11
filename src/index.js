@@ -26,6 +26,9 @@ const live = require('./live');
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || '';
 const GATEWAY_URL = (process.env.GATEWAY_URL || '').replace(/\/+$/, '');
 const ENABLE_DEBUG = process.env.ENABLE_DEBUG === '1';
+// MAGMA son .m3u8 directos y por defecto NO pasan por el proxy (ni cuentan en espectadores/GB/horas).
+// MAGMA_PROXY=1 los hace pasar por el proxy como al resto.
+const MAGMA_PROXY = process.env.MAGMA_PROXY === '1';
 {
   const p = [];
   if (GATEWAY_SECRET.length < 16) p.push('GATEWAY_SECRET (mínimo 16 caracteres)');
@@ -175,9 +178,11 @@ builder.defineStreamHandler(async ({ type, id }) => {
         name: s.name,
         title: s.title,
         url:
-          s.type === 'hls'
-            ? buildProxyPlaylistUrl(s.url, s.headers, meta)
-            : buildProxyDirectUrl(s.url, s.headers, meta),
+          s.direct && !MAGMA_PROXY
+            ? s.url
+            : s.type === 'hls'
+              ? buildProxyPlaylistUrl(s.url, s.headers, meta)
+              : buildProxyDirectUrl(s.url, s.headers, meta),
         behaviorHints: s.behaviorHints,
       }));
     console.log(`total streams devueltos: ${streams.length}`);
