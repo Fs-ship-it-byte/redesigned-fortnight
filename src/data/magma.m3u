@@ -1,5 +1,5 @@
 #EXTM3U
-#EXTINF:-1,ESPN 1 | Chile
+#EXTINF:-1,ESPN 1 | Argentina
 http://m3u.tvcluboficial.com/free/oct/oct/1132.m3u8
 #EXTINF:-1,ESPN 1 | Colombia
 http://m3u.tvcluboficial.com/free/oct/oct/1107.m3u8
@@ -10,13 +10,15 @@ http://m3u.tvcluboficial.com/free/oct/oct/401.m3u8
 #EXTINF:-1,DSports
 http://m3u.tvcluboficial.com/free/oct/oct/312.m3u8
 #EXTINF:-1,Tyc Sports
-https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports1/playlist.m3u8
+http://m3u.tvcluboficial.com/free/oct/oct/974.m3u8
 #EXTINF:-1,Fox Sports 1 | Sur
 http://m3u.tvcluboficial.com/free/oct/oct/435.m3u8
 #EXTINF:-1,Win Sports
 http://m3u.tvcluboficial.com/free/oct/oct/1039.m3u8
 #EXTINF:-1,ESPN 2 | Sur
 http://m3u.tvcluboficial.com/free/oct/oct/372.m3u8
+#EXTINF:-1 region="base",ESPN 2 HD
+http://m3u.tvcluboficial.com/free/oct/oct/375.m3u8
 #EXTINF:-1,TyC Sports HD
 http://m3u.tvcluboficial.com/free/oct/oct/1143.m3u8
 #EXTINF:-1,ESPN Deportes
@@ -35,7 +37,7 @@ http://m3u.tvcluboficial.com/free/oct/oct/427.m3u8
 http://m3u.tvcluboficial.com/free/oct/oct/1041.m3u8
 #EXTINF:-1,ESPN 3 | Sur
 http://m3u.tvcluboficial.com/free/oct/oct/1127.m3u8
-#EXTINF:-1,ESPN 1 | Argentina
+#EXTINF:-1,ESPN 1 | Colombia
 http://m3u.tvcluboficial.com/free/oct/oct/1111.m3u8
 #EXTINF:-1,ESPN 7 HD
 http://m3u.tvcluboficial.com/free/oct/oct/1106.m3u8
@@ -187,3 +189,27 @@ http://m3u.tvcluboficial.com/free/oct/oct/368.m3u8
 http://m3u.tvcluboficial.com/free/oct/oct/1131.m3u8
 #EXTINF:-1,Claro Sports
 http://m3u.tvcluboficial.com/free/oct/oct/201.m3u8
+#EXTINF:-1,ESPN 1 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn-mux/chunks.m3u8
+#EXTINF:-1,ESPN 2 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn2-mux/chunks.m3u8
+#EXTINF:-1,ESPN 3 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn3-mux/chunks.m3u8
+#EXTINF:-1,ESPN 4 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn4-mux/chunks.m3u8
+#EXTINF:-1,ESPN 5 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn5-mux/chunks.m3u8
+#EXTINF:-1,ESPN 6 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn6-mux/chunks.m3u8
+#EXTINF:-1,ESPN 7 | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn7-mux/chunks.m3u8
+#EXTINF:-1,ESPN Premium | Argentina
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn_premium.stream/playlist.m3u8
+#EXTINF:-1,TyC Sports | Argentina
+https://amg26268-amg26268c14-freelivesports-emea-10267.playouts.now.amagi.tv/ts-us-e2-n2/playlist/amg26268-sportsstudio-tycsports-freelivesportsemea/playlist.m3u8
+#EXTINF:-1,Fox Sports 1 | Argentina
+https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports1/playlist.m3u8
+#EXTINF:-1,Fox Sports 2 | Argentina
+https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports2/playlist.m3u8
+#EXTINF:-1,Fox Sports 3 | Argentina
+https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports3/playlist.m3u8
