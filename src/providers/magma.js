@@ -15,6 +15,11 @@ const path = require('path');
 //   MAGMA_PER_SOURCE=3    máximo de opciones MAGMA por cada fuente de LA18HD
 //   MAGMA_MAX_STREAMS=8   máximo total de opciones MAGMA por evento
 //   MAGMA_M3U_FILE=ruta   otra ubicación para la lista
+//
+// En la lista, un canal puede llevar región forzada: #EXTINF:-1 region="base",ESPN 2 HD
+//   region="base"  -> es el canal predeterminado: solo lo usa quien NO indica región (ej. "ESPN 2"),
+//                    nunca "ESPN 2 (México)" ni "ESPN 2 (USA)".
+//   region="mexico" (u otra) -> fuerza esa región aunque el nombre no la diga.
 // ==========================================
 
 const DISABLED = process.env.DISABLE_MAGMA === '1';
@@ -82,13 +87,16 @@ function load() {
   }
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^#EXTINF:[^,]*,(.*)$/);
+    const m = lines[i].match(/^#EXTINF:([^,]*),(.*)$/);
     if (!m) continue;
-    const name = m[1].trim();
+    const name = m[2].trim();
+    const forced = (m[1].match(/region="([^"]*)"/i) || [])[1]; // opcional: fuerza la región de ese canal
     const url = (lines[i + 1] || '').trim();
     if (!name || !/^https?:\/\//i.test(url)) continue;
     if (/ahorro/i.test(name)) continue; // versión de calidad reducida
-    _entries.push({ name, url, ...parseName(name), order: _entries.length });
+    const parsed = parseName(name);
+    if (forced) parsed.region = forced.toLowerCase() === 'base' ? 'base' : (regionOf(forced) || forced.toLowerCase());
+    _entries.push({ name, url, ...parsed, order: _entries.length });
   }
   console.log(`[magma] ${_entries.length} canal(es) cargados de ${path.basename(FILE)}`);
   return _entries;
@@ -97,6 +105,9 @@ function load() {
 // Puntaje de un candidato frente al canal buscado (0 = descartado).
 function score(want, cand) {
   if (want.brand !== cand.brand || want.num !== cand.num) return 0;
+  // Canal marcado region="base" en la lista: es el predeterminado de ese canal. Solo se ofrece cuando
+  // LA18HD NO dice región (ej. "ESPN 2"); si dice una región (México, USA...) no es esa señal.
+  if (cand.region === 'base') return want.region ? 0 : 2.5;
   if (want.region) {
     if (!cand.region) return 1;                       // la lista no distingue región: vale
     if (cand.region === want.region) return 3;        // misma región
@@ -124,8 +135,30 @@ function findByChannelName(channelName, max = PER_SOURCE) {
 }
 
 // ---------- slug / link de LA18HD -> nombre de canal ----------
+// Slugs que LA18HD usa en sus eventos y que no están en CHANNELS (o no se parecen al nombre).
+// Se pueden ampliar sin tocar código en src/data/magma_aliases.json: { "slug": "Nombre del canal" }.
+const SLUG_ALIASES = {
+  liga1ma: 'Liga 1 Max (Perú)',
+  liga1max: 'Liga 1 Max (Perú)',
+};
+let _extraAliases = null;
+function extraAliases() {
+  if (_extraAliases) return _extraAliases;
+  _extraAliases = {};
+  try {
+    const f = path.join(path.dirname(FILE), 'magma_aliases.json');
+    if (fs.existsSync(f)) _extraAliases = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
+  } catch (e) {
+    console.log(`[magma] magma_aliases.json inválido: ${e.message}`);
+  }
+  return _extraAliases;
+}
+
 function channelNameForSlug(slug) {
   if (!slug) return '';
+  const key = String(slug).toLowerCase();
+  if (extraAliases()[key]) return extraAliases()[key];
+  if (SLUG_ALIASES[key]) return SLUG_ALIASES[key];
   try {
     const { CHANNELS } = require('./la18hd'); // require tardío: evita dependencia circular
     const c = CHANNELS.find((x) => x.slug === slug);
@@ -156,6 +189,18 @@ function toStream(entry) {
   };
 }
 
+// Si dos canales de la lista se llaman igual (ej. dos "ESPN 1 | Argentina"), se numeran para distinguirlos.
+function numberDuplicates(streams) {
+  const total = {};
+  streams.forEach((s) => { total[s.title] = (total[s.title] || 0) + 1; });
+  const seen = {};
+  return streams.map((s) => {
+    if (total[s.title] < 2) return s;
+    seen[s.title] = (seen[s.title] || 0) + 1;
+    return { ...s, title: `${s.title} (${seen[s.title]})` };
+  });
+}
+
 // Opciones MAGMA para UNA fuente de un evento de LA18HD ({ link, language }).
 // `seen` (Set de urls) evita repetir el mismo canal si dos fuentes apuntan a él.
 function streamsForSource(source, seen = new Set()) {
@@ -170,13 +215,13 @@ function streamsForSource(source, seen = new Set()) {
   }
   const found = all.filter((e) => !seen.has(e.url)); // ya añadidos por otra fuente del mismo evento
   found.forEach((e) => seen.add(e.url));
-  return found.map(toStream);
+  return numberDuplicates(found.map(toStream));
 }
 
 // Opciones MAGMA para un canal del catálogo ({ slug, name }).
 function streamsForChannel(slug, name) {
   if (DISABLED || process.env.MAGMA_CHANNELS === '0') return [];
-  return findByChannelName(name || channelNameForSlug(slug)).map(toStream);
+  return numberDuplicates(findByChannelName(name || channelNameForSlug(slug)).map(toStream));
 }
 
 module.exports = {
