@@ -1,7 +1,7 @@
 #EXTM3U
 #EXTINF:-1,ESPN 1 | Chile
 http://m3u.tvcluboficial.com/free/oct/oct/1132.m3u8
-#EXTINF:-1,ESPN 1 | Argentina
+#EXTINF:-1,ESPN 1 | Colombia
 http://m3u.tvcluboficial.com/free/oct/oct/1107.m3u8
 #EXTINF:-1,ESPN Premium HD
 http://m3u.tvcluboficial.com/free/oct/oct/408.m3u8
@@ -10,11 +10,9 @@ http://m3u.tvcluboficial.com/free/oct/oct/401.m3u8
 #EXTINF:-1,DSports
 http://m3u.tvcluboficial.com/free/oct/oct/312.m3u8
 #EXTINF:-1,Tyc Sports
-http://m3u.tvcluboficial.com/free/oct/oct/974.m3u8
+https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports1/playlist.m3u8
 #EXTINF:-1,Fox Sports 1 | Sur
 http://m3u.tvcluboficial.com/free/oct/oct/435.m3u8
-#EXTINF:-1,Fox Sports 1 | Argentina
-https://zapster.trapemn.tv:1936/CD-LATAM/FoxSports1/playlist.m3u8
 #EXTINF:-1,Win Sports
 http://m3u.tvcluboficial.com/free/oct/oct/1039.m3u8
 #EXTINF:-1,ESPN 2 | Sur
