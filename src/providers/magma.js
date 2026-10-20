@@ -12,7 +12,7 @@ const path = require('path');
 // Variables de entorno (todas opcionales):
 //   DISABLE_MAGMA=1       apaga esta fuente por completo
 //   MAGMA_CHANNELS=0      no añadir MAGMA en el catálogo de canales (solo en eventos)
-//   MAGMA_PER_SOURCE=3    máximo de opciones MAGMA por cada fuente de LA18HD
+//   MAGMA_PER_SOURCE=5    máximo de opciones MAGMA por cada fuente de LA18HD
 //   MAGMA_MAX_STREAMS=8   máximo total de opciones MAGMA por evento
 //   MAGMA_M3U_FILE=ruta   otra ubicación para la lista
 //
@@ -24,7 +24,7 @@ const path = require('path');
 
 const DISABLED = process.env.DISABLE_MAGMA === '1';
 const FILE = process.env.MAGMA_M3U_FILE || path.join(__dirname, '..', 'data', 'magma.m3u');
-const PER_SOURCE = Math.max(1, parseInt(process.env.MAGMA_PER_SOURCE || '3', 10));
+const PER_SOURCE = Math.max(1, parseInt(process.env.MAGMA_PER_SOURCE || '5', 10));
 const MAX_TOTAL = Math.max(1, parseInt(process.env.MAGMA_MAX_STREAMS || '8', 10));
 
 // ---------- normalización de nombres ----------
@@ -117,6 +117,7 @@ function score(want, cand) {
   // LA18HD no dice región: por defecto es la señal Sur
   if (!cand.region) return 2;
   if (SUR_GROUP.has(cand.region)) return cand.region === 'sur' ? 2 : 1.5;
+  if (cand.region === 'colombia') return 1.4; // alternativa de ESPN sin región, detrás del Sur y Argentina
   return 0;
 }
 
