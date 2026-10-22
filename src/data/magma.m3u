@@ -191,3 +191,65 @@ http://m3u.tvcluboficial.com/free/oct/oct/1131.m3u8
 http://m3u.tvcluboficial.com/free/oct/oct/201.m3u8
 #EXTINF:-1,TyC Sports | Argentina
 https://amg26268-amg26268c14-freelivesports-emea-10267.playouts.now.amagi.tv/ts-us-e2-n2/playlist/amg26268-sportsstudio-tycsports-freelivesportsemea/playlist.m3u8
+#EXTINF:-1,Telemundo
+https://nbculocallive.akamaized.net/hls/live/2037499/puertorico/stream1/master_1080.m3u8
+#EXTINF:-1,Telemundo (2)
+https://nbculocallive.akamaized.net/hls/live/2037499/puertorico/stream1/master.m3u8
+#EXTINF:-1,TUDN (2)
+https://telegratuita.net/cors-proxy.php?url=https://streaming-live-fcdn.api.prd.univisionnow.com/tudn/tudn.isml/hls/tudn.m3u8
+#EXTINF:-1,DSports
+https://s2.bufaloweb.com/bufalo9/index.m3u8
+#EXTINF:-1,ESPN 2 | Argentina
+https://s2.bufaloweb.com/bufalo4/index.m3u8
+#EXTINF:-1,ESPN 4 | Argentina
+https://s2.bufaloweb.com/bufalo6/index.m3u8
+#EXTINF:-1,ESPN 5 | Argentina
+https://s2.bufaloweb.com/bufalo7/index.m3u8
+#EXTINF:-1,ESPN 6 | Argentina
+https://s2.bufaloweb.com/bufalo8/index.m3u8
+#EXTINF:-1,ESPN 7 | Argentina
+https://s2.bufaloweb.com/bufalo12/index.m3u8
+#EXTINF:-1,Fox Sports 1 | Usa
+https://d1jzu95oc8fgt3.cloudfront.net/FOX_Sports720p.m3u8
+#EXTINF:-1,Fox Sports 2 | Usa
+https://tvsen7.aynaott.com/foxsports2/index.m3u8?e=1779283790&u=78be6644-0a65-48ec-81a4-089ac65a2619&token=cbb7f40b4af7be51a91e0629a5ac7238
+#EXTINF:-1,Bein Sports Xtra Español | Usa
+https://amg01334-beinsportsllc-beinxtraesp-localnow-aekzc.amagi.tv/playlist.m3u8
+#EXTINF:-1,Bein Sports Xtra Español | Usa
+https://amg01334-amg01334c1-freelivesports-emea-6792.playouts.now.amagi.tv/playlist/amg01334-beinxtra-beinespanolusapp-freelivesportsemea/playlist.m3u8
+#EXTINF:-1,Bein Sports Xtra Español | Usa
+https://dc1644a9jazgj.cloudfront.net/beIN_Sports_Xtra_Espanol1080.m3u8
+#EXTINF:-1,Bein Sports Xtra Español | Usa
+https://bein-esp-xumo.amagi.tv/playlistR720P.m3u8
+#EXTINF:-1,Bein Sports Xtra Español | Usa
+https://bein-esp-xumo.amagi.tv/playlist.m3u8
+#EXTINF:-1,Real Madrid TV
+https://rmtv.akamaized.net/hls/live/2043153/rmtv-es-web/master.m3u8
+#EXTINF:-1,Real Madrid TV English
+https://rmtv.akamaized.net/hls/live/2043154/rmtv-en-web/master.m3u8
+#EXTINF:-1,Barcelona TV
+https://amg17560-fcb-amg17560c2-rakuten-es-4889.playouts.now.amagi.tv/playlist/amg17560-fcbarcelona-topbarcaspanish-rakutenes/playlist.m3u8
+#EXTINF:-1,AYM Sports
+https://aym-as.otteravision.com/aym/as/as.m3u8
+#EXTINF:-1,Claro Sports
+https://dai.google.com/linear/hls/event/_OKWx76jT7mivD6d-25QAw/master.m3u8
+#EXTINF:-1,Claro Sports
+https://dai.google.com/linear/hls/event/yINISWAPQ0CPhPixe-40wQ/master.m3u8
+#EXTINF:-1,TUDN | Usa
+https://tkx.mp.lura.live/rest/v2/mcp/video/adstkZj0NvKqzB6e?anvack=8Q6d5qd2lubv3MRhZrh9xmoPC9Xzo64n&0GKUSH_R4IN&DONTSTEAL
+#EXTINF:-1,Azteca Deportes | Mexico
+https://stitcher.pluto.tv/stitch/hls/channel/65cf60d166eec80008724e6f/master.m3u8?deviceType=web&servertSideAds=false&deviceMake=safari&deviceVersion=1&deviceId=spencer&appVersion=1&deviceDNT=0&deviceModel=web&sid=43f1fb5e-5d7f-11ef-86b8-365f5985939b
+#EXTINF:-1,Liga 1 Max | Peru
+http://191.97.49.82:8001/play/a010/index.m3u8
+#EXTINF:-1,ESPN 1 | Argentina
+http://191.97.49.82:8001/play/a00k/index.m3u8
+#EXTINF:-1,ESPN 2 | Argentina
+http://191.97.49.82:8001/play/a00j/index.m3u8
+#EXTINF:-1,DSports
+http://191.97.59.33:8000/play/a09t/index.m3u8
+#EXTINF:-1,ESPN 1 | Argentina
+http://45.170.130.224:8000/play/a04l/index.m3u8
+#EXTINF:-1,Sky Sports LaLiga
+http://179.60.224.196:8000/play/a0i7/index.m3u8
+#EXTINF:-1,Win Sports
+http://181.78.71.71:18000/play/a03p/index.m3u8
