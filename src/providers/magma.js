@@ -13,6 +13,7 @@ const path = require('path');
 //   DISABLE_MAGMA=1       apaga esta fuente por completo
 //   MAGMA_CHANNELS=0      no añadir MAGMA en el catálogo de canales (solo en eventos)
 //   MAGMA_PER_SOURCE=5    máximo de opciones MAGMA por cada fuente de LA18HD
+//   MAGMA_PER_REGION=2    máximo de opciones por región cuando LA18HD no dice región (ej. "ESPN")
 //   MAGMA_MAX_STREAMS=8   máximo total de opciones MAGMA por evento
 //   MAGMA_M3U_FILE=ruta   otra ubicación para la lista
 //
@@ -25,6 +26,7 @@ const path = require('path');
 const DISABLED = process.env.DISABLE_MAGMA === '1';
 const FILE = process.env.MAGMA_M3U_FILE || path.join(__dirname, '..', 'data', 'magma.m3u');
 const PER_SOURCE = Math.max(1, parseInt(process.env.MAGMA_PER_SOURCE || '5', 10));
+const PER_REGION = Math.max(1, parseInt(process.env.MAGMA_PER_REGION || '2', 10));
 const MAX_TOTAL = Math.max(1, parseInt(process.env.MAGMA_MAX_STREAMS || '8', 10));
 
 // ---------- normalización de nombres ----------
@@ -127,12 +129,22 @@ function findByChannelName(channelName, max = PER_SOURCE) {
   if (!entries.length) return [];
   const want = parseName(channelName);
   if (!want.brand) return [];
-  return entries
+  let list = entries
     .map((e) => ({ e, s: score(want, e) }))
     .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s || a.e.order - b.e.order)
-    .slice(0, max)
-    .map((x) => x.e);
+    .sort((a, b) => b.s - a.s || a.e.order - b.e.order);
+  // Canal SIN región (ej. "ESPN"): se reparten las opciones entre señales (Sur, Argentina, Colombia...)
+  // con un máximo de PER_REGION por región, para que muchas fuentes de una región no tapen a las demás.
+  if (!want.region) {
+    const count = {};
+    list = list.filter((x) => {
+      const r = x.e.region;
+      if (!r || r === 'base') return true;
+      count[r] = (count[r] || 0) + 1;
+      return count[r] <= PER_REGION;
+    });
+  }
+  return list.slice(0, max).map((x) => x.e);
 }
 
 // ---------- slug / link de LA18HD -> nombre de canal ----------
