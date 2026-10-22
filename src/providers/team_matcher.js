@@ -83,6 +83,23 @@ const ALIAS_GROUPS = [
   ['manchester city', 'man city'],
   ['atletico madrid', 'atl madrid', 'atletico de madrid'],
   ['sporting cristal', 'sporting cristal lima'],
+  // ciudades: el mismo nombre en inglés/español y en el idioma local
+  ['prague', 'praha', 'praga'],
+  ['vienna', 'wien', 'viena'],
+  ['cologne', 'koln', 'colonia'],
+  ['munich', 'munchen', 'munich'],
+  ['copenhagen', 'kobenhavn', 'copenhague'],
+  ['bucharest', 'bucuresti', 'bucarest'],
+  ['belgrade', 'beograd', 'belgrado'],
+  ['warsaw', 'warszawa', 'varsovia'],
+  ['kyiv', 'kiev', 'kyev'],
+  ['antwerp', 'antwerpen', 'anvers', 'amberes'],
+  ['bruges', 'brugge', 'brujas'],
+  ['seville', 'sevilla'],
+  ['milan', 'milano'],
+  ['lisbon', 'lisboa'],
+  ['athens', 'athina', 'atenas'],
+  ['moscow', 'moskva', 'moscu'],
 ];
 
 // variantes más largas primero, para que "irlanda del norte" gane a "irlanda"
@@ -99,6 +116,8 @@ const ALIAS_REGEXES = ALIAS_LIST.map(([variant, canon]) => [
 // palabras que no ayudan a distinguir equipos
 const STOPWORDS = new Set([
   'fc', 'cf', 'sc', 'ac', 'afc', 'cd', 'ud', 'sd', 'club',
+  // etiquetas de club de otros países ("FK Sabah", "Sabah FA", "SK Slavia", "SV Werder", "BK Häcken")
+  'fa', 'fk', 'sk', 'nk', 'hnk', 'ofk', 'kf', 'ks', 'ik', 'bk', 'sv', 'vfl', 'vfb', 'tsg', 'fsv',
   'de', 'del', 'la', 'el', 'los', 'las', 'the', 'of', 'and', 'y', 'vs', 'v',
 ]);
 
