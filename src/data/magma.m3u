@@ -195,9 +195,7 @@ https://amg26268-amg26268c14-freelivesports-emea-10267.playouts.now.amagi.tv/ts-
 https://nbculocallive.akamaized.net/hls/live/2037499/puertorico/stream1/master_1080.m3u8
 #EXTINF:-1,Telemundo (2)
 https://nbculocallive.akamaized.net/hls/live/2037499/puertorico/stream1/master.m3u8
-#EXTINF:-1,TUDN (2)
-https://telegratuita.net/cors-proxy.php?url=https://streaming-live-fcdn.api.prd.univisionnow.com/tudn/tudn.isml/hls/tudn.m3u8
-#EXTINF:-1,DSports
+#EXTINF:-1,DSports | Colombia
 https://s2.bufaloweb.com/bufalo9/index.m3u8
 #EXTINF:-1,ESPN 2 | Argentina
 https://s2.bufaloweb.com/bufalo4/index.m3u8
@@ -211,8 +209,6 @@ https://s2.bufaloweb.com/bufalo8/index.m3u8
 https://s2.bufaloweb.com/bufalo12/index.m3u8
 #EXTINF:-1,Fox Sports 1 | Usa
 https://d1jzu95oc8fgt3.cloudfront.net/FOX_Sports720p.m3u8
-#EXTINF:-1,Fox Sports 2 | Usa
-https://tvsen7.aynaott.com/foxsports2/index.m3u8?e=1779283790&u=78be6644-0a65-48ec-81a4-089ac65a2619&token=cbb7f40b4af7be51a91e0629a5ac7238
 #EXTINF:-1,Bein Sports Xtra Español | Usa
 https://amg01334-beinsportsllc-beinxtraesp-localnow-aekzc.amagi.tv/playlist.m3u8
 #EXTINF:-1,Bein Sports Xtra Español | Usa
