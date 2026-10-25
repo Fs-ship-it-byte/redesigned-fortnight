@@ -1,4 +1,5 @@
 const { resolveM3u8ViaBrowser } = require('../extractors/browser');
+const { resolveLa18Http } = require('../extractors/la18http');
 const magma = require('./magma');
 
 // DISABLE_LA18=1: no se resuelve el canal por LA18HD (no se abre Chromium); solo se ofrece MAGMA si hay equivalente.
@@ -326,9 +327,17 @@ async function getStreams(id) {
     return extra;
   }
 
-  const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
-  console.log(`[la18hd] resolviendo vía navegador headless: ${pageUrl}`);
-  const resolved = await resolveM3u8ViaBrowser(pageUrl, { timeoutMs: 20000 });
+  // 1) Camino liviano: un GET normal (sin Chromium). Si no responde o el canal no tiene señal -> 2) navegador.
+  let resolved = null;
+  const viaHttp = await resolveLa18Http(slug);
+  if (viaHttp) {
+    resolved = { url: viaHttp.url, headers: viaHttp.headers };
+    console.log(`[la18hd] ${slug} resuelto por HTTP (${viaHttp.via}), sin navegador`);
+  } else {
+    const pageUrl = `${MAIN_URL}/vivo/canales.php?stream=${slug}`;
+    console.log(`[la18hd] resolviendo vía navegador headless: ${pageUrl}`);
+    resolved = await resolveM3u8ViaBrowser(pageUrl, { timeoutMs: 20000 });
+  }
 
   if (!resolved) {
     console.log(`[la18hd] no se encontró ningún m3u8 para ${slug}`);
