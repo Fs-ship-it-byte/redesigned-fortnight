@@ -190,6 +190,17 @@ const DEBUG = process.env.ENABLE_DEBUG === '1';
 // Si no llega, se usa la IP que firmó el gateway en /stream y, en último caso, la del socket.
 function cfIp(req) { const v = String(req.headers['cf-connecting-ip'] || '').trim(); return net.isIP(v) ? v : ''; }
 function clientIp(req) { return req.ip || req.socket.remoteAddress || 'unknown'; }
+// De dónde sale la IP del espectador (variable CLIENT_IP_SOURCE):
+//   cf     (por defecto, Render): cabecera CF-Connecting-IP. SOLO es segura si Cloudflare va delante y la sobrescribe.
+//   proxy  (VM con Caddy/nginx SIN Cloudflare): la IP que anota tu proxy en X-Forwarded-For (req.ip, con TRUSTED_PROXY_HOPS).
+//          En este modo la cabecera CF-Connecting-IP se IGNORA, porque ahí cualquiera podría inventarla.
+//   signed: solo la IP firmada en /stream (estable, pero no detecta URLs copiadas a otra red).
+const IP_SOURCE = (process.env.CLIENT_IP_SOURCE || 'cf').toLowerCase();
+function viewerIp(req, data) {
+  if (IP_SOURCE === 'proxy') return clientIp(req);
+  if (IP_SOURCE === 'signed') return data.i || clientIp(req);
+  return cfIp(req) || data.i || clientIp(req);
+}
 
 // Comprobaciones comunes: cuenta bloqueada, espectadores y banda.
 function gate(req, res, data, kind) {
@@ -197,7 +208,7 @@ function gate(req, res, data, kind) {
   if (live.isBlocked(acct)) { res.status(403).send('Cuenta suspendida'); return false; }
   // La IP que ve Render NO es fiable (cambia por servidor de Cloudflare o IPv4/IPv6): se usa la que firmó el gateway.
   if (data.ms) {
-    const ip = cfIp(req) || data.i || clientIp(req);
+    const ip = viewerIp(req, data);
     const r = live.touchViewer(acct, ip, data.ch || '-', data.ms, kind);
     if (!r) { res.status(403).send('Límite de reproducciones simultáneas alcanzado'); return false; }
     if (r === 'new' && DEBUG) // diagnóstico: qué IP llega por cada vía (sin tokens)
@@ -262,7 +273,7 @@ async function handleDirectProxy(req, res) {
 }
 
 module.exports = {
-  assertConfig, isPrivateIp, encodeProxyToken, decodeProxyToken, rewriteM3u8,
+  assertConfig, isPrivateIp, fetchSafe, encodeProxyToken, decodeProxyToken, rewriteM3u8,
   buildProxyPlaylistUrl, buildProxyDirectUrl,
   handlePlaylistProxy, handleSegmentProxy, handleDirectProxy,
 };
