@@ -247,3 +247,57 @@ http://45.170.130.224:8000/play/a04l/index.m3u8
 http://179.60.224.196:8000/play/a0i7/index.m3u8
 #EXTINF:-1,Win Sports
 http://181.78.71.71:18000/play/a03p/index.m3u8
+#EXTINF:-1,TUDN | Centroamérica
+http://181.119.177.253:8000/play/a0ds/index.m3u8
+#EXTINF:-1,TUDN
+http://179.60.224.196:8000/play/a0f4/index.m3u8
+#EXTINF:-1,TUDN
+http://186.33.1.71:8000/play/a0bx/index.m3u8
+#EXTINF:-1,Liga 1 Max | Peru
+http://186.148.196.100:8000/play/a030
+#EXTINF:-1,Liga 1 Max | Peru
+http://190.60.59.60:8000/play/a0sv/index.m3u8
+#EXTINF:-1,Liga 1 Max | Peru
+http://38.224.48.4:8000/play/a0x2/index.m3u8
+#EXTINF:-1,Tyc Sports
+http://45.186.254.75:8000/play/a08n/index.m3u8
+#EXTINF:-1,Tyc Sports
+http://181.79.87.130:8000/play/a0ck/index.m3u8
+#EXTINF:-1,Tyc Sports
+http://38.65.175.87:8000/play/a0kw/index.m3u8?hls
+#EXTINF:-1,El Canal del Futbol (ECDF)
+http://157.100.9.51:8000/play/a1vp
+#EXTINF:-1,El Canal del Futbol (ECDF)
+http://181.79.87.132:8000/play/a0ca/index.m3u8
+#EXTINF:-1,TNT Sports | Chile
+http://181.79.87.131:8000/play/a0e0/index.m3u8
+#EXTINF:-1,TNT Sports | Chile
+http://205.235.6.29:8000/play/a0xa/index.m3u8?hls
+#EXTINF:-1,TNT Sports | Chile
+http://181.78.79.131:8000/play/a0mo
+#EXTINF:-1,TNT Sports Premium | Chile
+http://205.235.6.29:8000/play/a104/index.m3u8?hls
+#EXTINF:-1,TNT Sports Premium | Chile
+http://200.59.191.177:8000/play/a0o9/index.m3u8?hls
+#EXTINF:-1,TNT Sports Premium | Chile
+http://190.108.83.69:8000/play/a03i/index.m3u8
+#EXTINF:-1,DSports
+http://190.117.20.37:8000/play/a08d/index.m3u
+#EXTINF:-1,DSports
+http://181.224.255.210:8001/play/a0s8/index.m3u8?hls
+#EXTINF:-1,DSports
+http://45.186.254.75:8000/play/a0en/index.m3u8
+#EXTINF:-1,DSports | Ecuador
+http://157.100.9.51:8000/play/a26e
+#EXTINF:-1,Fox Sports 1 | Mexico
+http://190.61.101.11:7050/play/a08t/index.m3u8?hls
+#EXTINF:-1,Fox Sports 1 | Mexico
+http://45.167.2.138:8000/play/a0ql/index.m3u8
+#EXTINF:-1,Fox Sports 2 | Usa
+http://190.61.101.11:7050/play/a08v/index.m3u8?hls
+#EXTINF:-1,Win Sports
+http://181.225.190.242:8000/play/a03r
+#EXTINF:-1,Win Sports +
+http://186.148.184.22:8000/play/a0ih/index.m3u8
+#EXTINF:-1,Win Sports +
+http://181.78.21.38:8000/play/a07r/index.m3u8
