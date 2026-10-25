@@ -4,6 +4,7 @@ const { renderPageHtml } = require('../extractors/browser');
 const { resolveCanalesPhp, resolveGlobalPhp } = require('../extractors/canalesphp');
 const { resolveGenericEmbed } = require('../extractors/generic');
 const magma = require('./magma');
+const { resolveLa18Http } = require('../extractors/la18http');
 
 // DISABLE_LA18=1: no se resuelven las fuentes de LA18HD (no se abre Chromium para ellas).
 // La agenda sí se sigue leyendo, porque de ella sale el canal de cada fuente para emparejarlo con MAGMA.
@@ -311,6 +312,24 @@ async function resolveSourceStreams(source) {
   }
 
   if (urls.length === 0) {
+    // Respaldo liviano: si la fuente es un canal de LA18HD (?stream=slug), se prueba por HTTP antes del navegador.
+    const slug = magma.slugFromLink(source.link);
+    let host = '';
+    try { host = new URL(source.link).hostname; } catch (e) { /* link raro */ }
+    if (slug && /la18hd/i.test(host)) {
+      const viaHttp = await resolveLa18Http(slug).catch(() => null);
+      if (viaHttp) {
+        out.push({
+          name: 'LA18HD',
+          title: label,
+          url: viaHttp.url,
+          type: 'hls',
+          headers: viaHttp.headers,
+          behaviorHints: { notWebReady: true },
+        });
+        return out;
+      }
+    }
     const resolved = await resolveGenericEmbed(source.link, source.link).catch(() => null);
     if (resolved) {
       out.push({
