@@ -153,6 +153,8 @@ function findByChannelName(channelName, max = PER_SOURCE) {
 const SLUG_ALIASES = {
   liga1ma: 'Liga 1 Max (Perú)',
   liga1max: 'Liga 1 Max (Perú)',
+  ecdf: 'El Canal del Futbol (ECDF)',
+  ecdf_ligapro: 'El Canal del Futbol (ECDF)',
 };
 let _extraAliases = null;
 function extraAliases() {
@@ -165,6 +167,11 @@ function extraAliases() {
     console.log(`[magma] magma_aliases.json inválido: ${e.message}`);
   }
   return _extraAliases;
+}
+
+function hasAlias(slug) {
+  const key = String(slug || '').toLowerCase();
+  return !!(extraAliases()[key] || SLUG_ALIASES[key]);
 }
 
 function channelNameForSlug(slug) {
@@ -234,7 +241,8 @@ function streamsForSource(source, seen = new Set()) {
 // Opciones MAGMA para un canal del catálogo ({ slug, name }).
 function streamsForChannel(slug, name) {
   if (DISABLED || process.env.MAGMA_CHANNELS === '0') return [];
-  return numberDuplicates(findByChannelName(name || channelNameForSlug(slug)).map(toStream));
+  const aliased = hasAlias(slug) ? channelNameForSlug(slug) : '';
+  return numberDuplicates(findByChannelName(aliased || name || channelNameForSlug(slug)).map(toStream));
 }
 
 module.exports = {
