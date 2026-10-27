@@ -2,6 +2,7 @@ const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const la18hd = require('./providers/la18hd');
 const la18hdEventos = require('./providers/la18hd_eventos');
+const iptvsv = require('./providers/iptvsv'); // addon aparte: lista M3U de GitHub, streams directos (sin proxy)
 const stremverse = require('./providers/stremverse_bridge');
 const sportsfree = require('./providers/sportsfree_bridge');
 const crypto = require('crypto');
@@ -52,7 +53,7 @@ const VALID_ACCT = /^[A-Za-z0-9_-]{1,40}$/;
 // está enganchado acá. En su lugar se agregó la agenda de eventos de
 // LA18HD (la18hd.su/eventos/) como su propio provider
 // (la18hd_eventos.js), separado del catálogo de canales fijos.
-const PROVIDERS = { [la18hd.PREFIX]: la18hd, [la18hdEventos.PREFIX]: la18hdEventos };
+const PROVIDERS = { [la18hd.PREFIX]: la18hd, [la18hdEventos.PREFIX]: la18hdEventos, [iptvsv.PREFIX]: iptvsv };
 
 function providerForId(id) {
   return PROVIDERS[id.split(':')[0]];
@@ -66,6 +67,12 @@ const SHOW_OWN_EVENTS = process.env.SHOW_OWN_EVENTS_CATALOG === '1';
 
 const streamPrefixesTv = [la18hd.PREFIX, ...stremverse.SV_ID_PREFIXES];
 const metaPrefixes = [la18hd.PREFIX];
+// IPTV SV. DISABLE_IPTVSV=1 lo quita del manifest.
+const SHOW_IPTVSV = process.env.DISABLE_IPTVSV !== '1';
+if (SHOW_IPTVSV) {
+  streamPrefixesTv.push(iptvsv.PREFIX);
+  metaPrefixes.push(iptvsv.PREFIX);
+}
 if (SHOW_OWN_EVENTS) {
   streamPrefixesTv.push(la18hdEventos.PREFIX);
   metaPrefixes.push(la18hdEventos.PREFIX);
@@ -92,6 +99,9 @@ const manifest = {
   types: ['tv', 'sport'],
   catalogs: [
     { type: 'tv', id: 'canales', name: 'LA18HD - Canales en vivo', extra: [{ name: 'search' }], posterShape: 'square' },
+    ...(SHOW_IPTVSV
+      ? [{ type: 'tv', id: 'iptvsv', name: 'IPTV SV - Canales', extra: [{ name: 'genre', options: iptvsv.GENRES }, { name: 'search' }, { name: 'skip' }], posterShape: 'square' }]
+      : []),
     ...(SHOW_OWN_EVENTS
       ? [{ type: 'tv', id: 'eventos', name: 'LA18HD - Agenda deportiva', extra: [{ name: 'search' }], posterShape: 'square' }]
       : []),
@@ -99,7 +109,7 @@ const manifest = {
   idPrefixes: metaPrefixes,
 };
 
-const CATALOG_TO_PROVIDER = { canales: la18hd, ...(SHOW_OWN_EVENTS ? { eventos: la18hdEventos } : {}) };
+const CATALOG_TO_PROVIDER = { canales: la18hd, ...(SHOW_IPTVSV ? { iptvsv } : {}), ...(SHOW_OWN_EVENTS ? { eventos: la18hdEventos } : {}) };
 
 const builder = new addonBuilder(manifest);
 
@@ -111,6 +121,7 @@ builder.defineCatalogHandler(async ({ id, extra }) => {
       const q = String(extra.search).slice(0, 80);
       return { metas: await provider.search(q) };
     }
+    if (provider === iptvsv) return { metas: await iptvsv.getCatalog(extra || {}) }; // genre / skip
     return { metas: await provider.getCatalog() };
   } catch (err) {
     console.error('catalog error', err);
@@ -145,6 +156,9 @@ builder.defineStreamHandler(async ({ type, id }) => {
     const c = ctx.getStore() || {};
     if (!c.acct || !VALID_ID.test(String(id))) return { streams: [] };
     if (live.isBlocked(c.acct)) return { streams: [] };
+    // IPTV SV: streams directos de la lista (no pasan por Render ni por el proxy), así que
+    // quedan fuera de los topes de datos/horas/reproducciones y de MAGMA_PROXY.
+    if (providerForId(id) === iptvsv) return { streams: await iptvsv.getStreams(id) };
     const meta = { acct: c.acct, ch: String(id).slice(0, 80), ms: c.maxStreams, bl: c.dailyBytes, wl: c.dailySeconds, ip: c.ip !== 'unknown' ? c.ip : '' };
     if (live.overQuota(c.acct, c.dailyBytes || 0)) {
       return { streams: [limitStream('cuota', 'Alcanzaste el tope diario de datos. Se restablece a las 00:00 UTC.')] };
