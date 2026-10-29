@@ -179,7 +179,7 @@ const LOGO_MAP = {
   goltv: wikimediaFile('GolTV logo.svg'),
   golperu: wikimediaFile('Gol Perú 2019.svg'),
   liga1max: fitToSquare(
-    'https://upload.wikimedia.org/wikipedia/commons/3/38/L1MAX-LOGO.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/L1MAX-LOGO.svg/960px-L1MAX-LOGO.svg.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail&_=20240126211535'
   ),
   movistar: wikimediaFile('Movistar Deportes.svg'),
   // Win Sports (Colombia)
