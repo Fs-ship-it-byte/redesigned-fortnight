@@ -209,7 +209,6 @@ http://m3u.tvcluboficial.com/free/oct/oct/446.m3u8
 http://m3u.tvcluboficial.com/free/oct/oct/454.m3u8
 #EXTINF:-1,Fox Sports Premium
 http://m3u.tvcluboficial.com/free/oct/oct/461.m3u8
-#EXTM3U
 #EXTINF:-1,ESPN 1 | Colombia
 http://m3u.tvcluboficial.com/free/ReachBot/Kip/1111.m3u8
 #EXTINF:-1,ESPN 1 | Argentina
@@ -300,6 +299,32 @@ http://m3u.tvcluboficial.com/free/ReachBot/Kip/938.m3u8
 http://m3u.tvcluboficial.com/free/ReachBot/Kip/974.m3u8
 #EXTINF:-1,TyC Sports HD
 http://m3u.tvcluboficial.com/free/ReachBot/Kip/1143.m3u8
+#EXTINF:-1,Animal Planet
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/41.m3u8
+#EXTINF:-1,Discovery Channel
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/247.m3u8
+#EXTINF:-1,Discovery Civilization
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/252.m3u8
+#EXTINF:-1,Discovery H&H
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/254.m3u8
+#EXTINF:-1,Discovery SCI
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/267.m3u8
+#EXTINF:-1,Discovery Theater HD
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/271.m3u8
+#EXTINF:-1,Discovery Turbo
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/274.m3u8
+#EXTINF:-1,Discovery World
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/276.m3u8
+#EXTINF:-1,H2
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/509.m3u8
+#EXTINF:-1,History Channel
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/558.m3u8
+#EXTINF:-1,Investigation Discovery
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/579.m3u8
+#EXTINF:-1,Nat Geo
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/703.m3u8
+#EXTINF:-1,Nat Geo Wild
+http://m3u.tvcluboficial.com/free/ReachBot/Kip/709.m3u8
 #EXTINF:-1,TyC Sports | Argentina
 https://amg26268-amg26268c14-freelivesports-emea-10267.playouts.now.amagi.tv/ts-us-e2-n2/playlist/amg26268-sportsstudio-tycsports-freelivesportsemea/playlist.m3u8
 #EXTINF:-1,Telemundo
