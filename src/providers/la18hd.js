@@ -161,7 +161,7 @@ const LOGO_MAP = {
     'https://d18o29lhcg4kda.cloudfront.net/fit-in/360x270/Y2gwMTAwMDAwMDAwMTI4X2xpbmVhcl9jaGFubmVsX3NzbGE_11002_LOGO_360x270.png?timestamp=1787083438554'
   ),
   dsportsplus: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/6/6b/DSports_%2B_2022.png/revision/latest?cb=20221115002318&path-prefix=es'
+    'https://upload.wikimedia.org/wikipedia/commons/4/45/DSportsM%C3%A1s.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled&_=20221114223006'
   ),
   // TUDN
   tudn: wikimediaFile('TUDN Logo.svg'),
