@@ -207,22 +207,22 @@ const LOGO_MAP = {
   calientetv: fitToSquare('https://upload.wikimedia.org/wikipedia/commons/c/c8/Caliente_TV_Logo.png'),
   // Eventos Disney+ (logo directo de Fandom/Logopedia pasado por el usuario)
   disney: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   disney2: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   disney3: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   disney4: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   disney5: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   disney6: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/7/7d/Disney%2B_ESPN_%282024%29.svg/revision/latest/scale-to-width-down/1000?cb=20241209024056'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Disney%2B_2024_%28ESPN_variant%29.svg/1280px-Disney%2B_2024_%28ESPN_variant%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
 };
 
