@@ -186,7 +186,7 @@ const LOGO_MAP = {
   winsports: wikimediaFile('Win Sports nuevo logo.svg'),
   winsports2: wikimediaFile('Win Sports nuevo logo.svg'),
   winsportsplus: fitToSquare(
-    'https://static.wikia.nocookie.net/logopedia/images/9/99/WinSports%2B2022.png/revision/latest?cb=20221011170127'
+    'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e9/Win%2B_F%C3%BAtbol_logo.svg/1280px-Win%2B_F%C3%BAtbol_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
   ),
   // Sky Sports
   sky_sports_laliga: wikimediaFile('Sky Sports 2025.svg'),
